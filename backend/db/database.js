@@ -1,20 +1,48 @@
-const fs = require("fs");
-const path = require("path");
-const { DatabaseSync } = require("node:sqlite");
+const postgres = require("postgres");
 const samples = require("../config/sample-candidates");
+const { HttpError } = require("../lib/helpers");
 
-let db;
+let sql;
+let ready;
 
-function initDb() {
-  if (db) {
-    return db;
+function connectionString() {
+  return process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
+}
+
+function getSql() {
+  if (sql) {
+    return sql;
   }
+  const url = connectionString();
+  if (!url) {
+    throw new HttpError(500, "DATABASE_URL is not set.");
+  }
+  const local = /localhost|127\.0\.0\.1/.test(url);
+  sql = postgres(url, { max: 1, ssl: local ? false : "require" });
+  return sql;
+}
 
-  const dir = path.join(__dirname, "..", "data");
-  fs.mkdirSync(dir, { recursive: true });
-  db = new DatabaseSync(path.join(dir, "spider-tracer.sqlite"));
-  db.exec("PRAGMA foreign_keys = ON");
-  db.exec(`
+async function query(text, params = []) {
+  await initDb();
+  return run(text, params);
+}
+
+async function run(text, params = []) {
+  let index = 0;
+  const statement = text.replace(/\?/g, () => `$${++index}`);
+  return getSql().unsafe(statement, params);
+}
+
+async function initDb() {
+  if (!ready) {
+    ready = createSchema();
+  }
+  return ready;
+}
+
+async function createSchema() {
+  const db = getSql();
+  await db.unsafe(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       display_name TEXT NOT NULL,
@@ -52,38 +80,33 @@ function initDb() {
       FOREIGN KEY (user_high_id) REFERENCES users(id)
     );
   `);
-  seedSamples();
-  return db;
+  await seedSamples();
 }
 
-function seedSamples() {
-  const insertUser = db.prepare(`
-    INSERT OR IGNORE INTO users
-      (id, display_name, avatar_id, project_idea, tracks_text, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
-  const insertRole = db.prepare(`
-    INSERT OR IGNORE INTO user_roles (user_id, role_id) VALUES (?, ?)
-  `);
-
+async function seedSamples() {
   for (const sample of samples) {
     const tracksText = Array.isArray(sample.tracks) ? sample.tracks.join(", ") : sample.tracks;
-    insertUser.run(
+    await run(`
+      INSERT INTO users
+        (id, display_name, avatar_id, project_idea, tracks_text, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT (id) DO NOTHING
+    `, [
       sample.id,
       sample.displayName,
       sample.avatarId,
       sample.projectIdea,
       tracksText,
       "2026-01-01T00:00:00.000Z"
-    );
+    ]);
     for (const roleId of sample.roles) {
-      insertRole.run(sample.id, roleId);
+      await run(`
+        INSERT INTO user_roles (user_id, role_id)
+        VALUES (?, ?)
+        ON CONFLICT (user_id, role_id) DO NOTHING
+      `, [sample.id, roleId]);
     }
   }
 }
 
-function getDb() {
-  return initDb();
-}
-
-module.exports = { initDb, getDb };
+module.exports = { initDb, query };

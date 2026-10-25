@@ -1,18 +1,46 @@
-const fs = require("fs");
-const path = require("path");
-const { DatabaseSync } = require("node:sqlite");
+const postgres = require("postgres");
+const { HttpError } = require("../lib/helpers");
 
-let db;
+let sql;
+let ready;
 
-function initDb() {
-  if (db) {
-    return db;
+function connectionString() {
+  return process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
+}
+
+function getSql() {
+  if (sql) {
+    return sql;
   }
+  const url = connectionString();
+  if (!url) {
+    throw new HttpError(500, "DATABASE_URL is not set.");
+  }
+  const local = /localhost|127\.0\.0\.1/.test(url);
+  sql = postgres(url, { max: 1, ssl: local ? false : "require" });
+  return sql;
+}
 
-  const dir = path.join(__dirname, "..", "data");
-  fs.mkdirSync(dir, { recursive: true });
-  db = new DatabaseSync(path.join(dir, "hacker-tracker-core.sqlite"));
-  db.exec(`
+async function run(text, params = []) {
+  let index = 0;
+  const statement = text.replace(/\?/g, () => `$${++index}`);
+  return getSql().unsafe(statement, params);
+}
+
+async function query(text, params = []) {
+  await initDb();
+  return run(text, params);
+}
+
+async function initDb() {
+  if (!ready) {
+    ready = createSchema();
+  }
+  return ready;
+}
+
+async function createSchema() {
+  await getSql().unsafe(`
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
       match_id TEXT NOT NULL,
@@ -43,11 +71,6 @@ function initDb() {
       created_at TEXT NOT NULL
     );
   `);
-  return db;
 }
 
-function getDb() {
-  return initDb();
-}
-
-module.exports = { initDb, getDb };
+module.exports = { initDb, query };

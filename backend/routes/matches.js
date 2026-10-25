@@ -18,34 +18,39 @@ function partnerMatches(entry, query) {
   return haystack.includes(String(query.q).trim().toLowerCase());
 }
 
-userMatches.get("/:userId/matches", asyncRoute((req, res) => {
-  const me = getUser(req.params.userId);
+userMatches.get("/:userId/matches", asyncRoute(async (req, res) => {
+  const me = await getUser(req.params.userId);
   if (!me) {
     throw new HttpError(404, "That hacker was not found.");
   }
 
-  const matches = listMatchRows(me.userId).map((row) => {
+  const rows = await listMatchRows(me.userId);
+  const matches = [];
+  for (const row of rows) {
     const partnerId = row.user_low_id === me.userId ? row.user_high_id : row.user_low_id;
-    const partner = getUser(partnerId);
-    return {
+    const partner = await getUser(partnerId);
+    const entry = {
       matchId: row.id,
       users: [row.user_low_id, row.user_high_id],
       createdAt: row.created_at,
       partner,
       why: templateForUser(me, partner)
     };
-  }).filter((entry) => partnerMatches(entry, req.query));
+    if (partnerMatches(entry, req.query)) {
+      matches.push(entry);
+    }
+  }
 
   res.json({ matches });
 }));
 
-matchRouter.get("/:matchId", asyncRoute((req, res) => {
-  const row = getMatchRow(req.params.matchId);
+matchRouter.get("/:matchId", asyncRoute(async (req, res) => {
+  const row = await getMatchRow(req.params.matchId);
   if (!row) {
     throw new HttpError(404, "That match was not found.");
   }
 
-  const people = [getUser(row.user_low_id), getUser(row.user_high_id)];
+  const people = [await getUser(row.user_low_id), await getUser(row.user_high_id)];
   res.json({
     matchId: row.id,
     users: [row.user_low_id, row.user_high_id],

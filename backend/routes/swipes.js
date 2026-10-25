@@ -4,9 +4,9 @@ const { asyncRoute } = require("../lib/helpers");
 
 const router = express.Router();
 
-router.post("/", asyncRoute((req, res) => {
+router.post("/", asyncRoute(async (req, res) => {
   const body = req.body || {};
-  res.json(recordSwipe(body.fromUserId, body.toUserId, body.action));
+  res.json(await recordSwipe(body.fromUserId, body.toUserId, body.action));
 }));
 
 module.exports = router;

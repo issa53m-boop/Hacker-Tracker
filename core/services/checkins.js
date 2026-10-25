@@ -1,4 +1,4 @@
-const { getDb } = require("../db/database");
+const { query } = require("../db/database");
 const { getUser } = require("./matchingClient");
 const { HttpError, now } = require("../lib/helpers");
 
@@ -15,19 +15,21 @@ async function checkIn(userId, code) {
   }
 
   await getUser(userId);
-  const existing = getDb().prepare("SELECT * FROM checkins WHERE user_id = ?").get(userId);
+  const existingRows = await query("SELECT * FROM checkins WHERE user_id = ?", [userId]);
+  const existing = existingRows[0];
   if (existing) {
     return { userId, checkedIn: true, checkedInAt: existing.checked_in_at };
   }
 
   const checkedInAt = now();
-  getDb().prepare("INSERT INTO checkins (user_id, checked_in_at) VALUES (?, ?)").run(userId, checkedInAt);
+  await query("INSERT INTO checkins (user_id, checked_in_at) VALUES (?, ?)", [userId, checkedInAt]);
   return { userId, checkedIn: true, checkedInAt };
 }
 
 async function getCheckIn(userId) {
   await getUser(userId);
-  const row = getDb().prepare("SELECT * FROM checkins WHERE user_id = ?").get(userId);
+  const rows = await query("SELECT * FROM checkins WHERE user_id = ?", [userId]);
+  const row = rows[0];
   if (!row) {
     return { userId, checkedIn: false };
   }

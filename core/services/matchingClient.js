@@ -1,13 +1,15 @@
 const { HttpError } = require("../lib/helpers");
 
-function baseUrl() {
-  return (process.env.MATCHING_API_URL || "http://127.0.0.1:3001").replace(/\/$/, "");
+function matchingUrl(path) {
+  const configured = process.env.MATCHING_API_URL || "http://127.0.0.1:3001";
+  const base = configured.endsWith("/") ? configured : `${configured}/`;
+  return new URL(String(path).replace(/^\//, ""), base);
 }
 
 async function getJson(path) {
   let response;
   try {
-    response = await fetch(`${baseUrl()}${path}`);
+    response = await fetch(matchingUrl(path));
   } catch {
     throw new HttpError(503, "The matching server is not running.");
   }

@@ -14,8 +14,6 @@ const { router: locations, listRouter: locationLists } = require("./routes/locat
 const { router: checkins, statusRouter: checkInStatus } = require("./routes/checkins");
 const { router: teams, listRouter: teamLists } = require("./routes/teams");
 
-initDb();
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -49,8 +47,13 @@ app.use((err, req, res, next) => {
 const port = Number(process.env.PORT) || 3002;
 
 if (require.main === module) {
-  app.listen(port, () => {
-    console.log(`Core server on http://localhost:${port}`);
+  initDb().then(() => {
+    app.listen(port, () => {
+      console.log(`Core server on http://localhost:${port}`);
+    });
+  }).catch((error) => {
+    console.error(error);
+    process.exit(1);
   });
 }
 

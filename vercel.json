@@ -1,0 +1,36 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "backend": {
+      "root": "backend",
+      "framework": "express"
+    },
+    "core": {
+      "root": "core",
+      "framework": "express",
+      "bindings": [
+        {
+          "type": "service",
+          "service": "backend",
+          "format": "url",
+          "env": "MATCHING_API_URL"
+        }
+      ]
+    }
+  },
+  "rewrites": [
+    { "source": "/api/messages", "destination": { "service": "core" } },
+    { "source": "/api/messages/(.*)", "destination": { "service": "core" } },
+    { "source": "/api/locations", "destination": { "service": "core" } },
+    { "source": "/api/locations/(.*)", "destination": { "service": "core" } },
+    { "source": "/api/check-in", "destination": { "service": "core" } },
+    { "source": "/api/check-in/(.*)", "destination": { "service": "core" } },
+    { "source": "/api/teams", "destination": { "service": "core" } },
+    { "source": "/api/teams/(.*)", "destination": { "service": "core" } },
+    { "source": "/api/matches/(.*)/messages", "destination": { "service": "core" } },
+    { "source": "/api/users/(.*)/locations", "destination": { "service": "core" } },
+    { "source": "/api/users/(.*)/check-in", "destination": { "service": "core" } },
+    { "source": "/api/users/(.*)/teams", "destination": { "service": "core" } },
+    { "source": "/(.*)", "destination": { "service": "backend" } }
+  ]
+}

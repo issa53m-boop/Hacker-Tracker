@@ -1,4 +1,4 @@
-const { getDb } = require("../db/database");
+const { query } = require("../db/database");
 const { getMatch, getUser, memberIds } = require("./matchingClient");
 const { HttpError, newId, now } = require("../lib/helpers");
 
@@ -32,10 +32,9 @@ async function createTeam(matchId, projectName, creatorUserId) {
   }
 
   const [low, high] = members[0] < members[1] ? [members[0], members[1]] : [members[1], members[0]];
-  const db = getDb();
-  const existing = db.prepare("SELECT * FROM teams WHERE match_id = ?").get(matchId);
-  if (existing) {
-    return teamJson(existing);
+  const existingRows = await query("SELECT * FROM teams WHERE match_id = ?", [matchId]);
+  if (existingRows[0]) {
+    return teamJson(existingRows[0]);
   }
 
   const row = {
@@ -47,21 +46,21 @@ async function createTeam(matchId, projectName, creatorUserId) {
     member_high_id: high,
     created_at: now()
   };
-  db.prepare(`
+  await query(`
     INSERT INTO teams
       (id, match_id, project_name, creator_user_id, member_low_id, member_high_id, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(row.id, row.match_id, row.project_name, row.creator_user_id, row.member_low_id, row.member_high_id, row.created_at);
+  `, [row.id, row.match_id, row.project_name, row.creator_user_id, row.member_low_id, row.member_high_id, row.created_at]);
   return teamJson(row);
 }
 
 async function listTeams(userId) {
   await getUser(userId);
-  const rows = getDb().prepare(`
+  const rows = await query(`
     SELECT * FROM teams
     WHERE member_low_id = ? OR member_high_id = ?
     ORDER BY created_at DESC
-  `).all(userId, userId);
+  `, [userId, userId]);
   return rows.map(teamJson);
 }
 

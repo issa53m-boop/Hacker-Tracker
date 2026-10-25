@@ -17,8 +17,6 @@ const gemini = require("./routes/gemini");
 const muse = require("./routes/muse");
 const preview = require("./routes/preview");
 
-initDb();
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -57,8 +55,13 @@ app.use((err, req, res, next) => {
 const port = Number(process.env.PORT) || 3001;
 
 if (require.main === module) {
-  app.listen(port, () => {
-    console.log(`Matching server on http://localhost:${port}`);
+  initDb().then(() => {
+    app.listen(port, () => {
+      console.log(`Matching server on http://localhost:${port}`);
+    });
+  }).catch((error) => {
+    console.error(error);
+    process.exit(1);
   });
 }
 

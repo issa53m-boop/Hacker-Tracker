@@ -2,6 +2,7 @@ const express = require("express");
 const { listUsers, getUser } = require("../services/profiles");
 const { listMatchRows } = require("../services/matching");
 const { templateForUser } = require("../services/explanation");
+const { asyncRoute } = require("../lib/helpers");
 
 const router = express.Router();
 
@@ -12,19 +13,22 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
-router.get("/", (req, res) => {
-  const people = listUsers();
-  const blocks = people.map((person) => {
-    const matches = listMatchRows(person.userId).map((row) => {
+router.get("/", asyncRoute(async (req, res) => {
+  const people = await listUsers();
+  const blocks = [];
+  for (const person of people) {
+    const rows = await listMatchRows(person.userId);
+    const matches = [];
+    for (const row of rows) {
       const partnerId = row.user_low_id === person.userId ? row.user_high_id : row.user_low_id;
-      const partner = getUser(partnerId);
+      const partner = await getUser(partnerId);
       const why = templateForUser(person, partner);
-      return `<li><strong>${escapeHtml(partner.displayName)}</strong> — ${escapeHtml(why.text)}</li>`;
-    });
+      matches.push(`<li><strong>${escapeHtml(partner.displayName)}</strong> — ${escapeHtml(why.text)}</li>`);
+    }
     const squad = matches.length ? `<ul>${matches.join("")}</ul>` : "<p>No squad members yet.</p>";
     const roles = person.roles.map((role) => role.name).join(", ");
-    return `<section><h2>${escapeHtml(person.displayName)}</h2><p>${escapeHtml(roles)}</p>${squad}</section>`;
-  });
+    blocks.push(`<section><h2>${escapeHtml(person.displayName)}</h2><p>${escapeHtml(roles)}</p>${squad}</section>`);
+  }
 
   res.type("html").send(`<!DOCTYPE html>
 <html lang="en">
@@ -44,6 +48,6 @@ router.get("/", (req, res) => {
   ${blocks.join("")}
 </body>
 </html>`);
-});
+}));
 
 module.exports = router;

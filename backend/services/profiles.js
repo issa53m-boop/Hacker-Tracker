@@ -1,6 +1,6 @@
 const config = require("../config/profile.config");
 const samples = require("../config/sample-candidates");
-const { getDb } = require("../db/database");
+const { query } = require("../db/database");
 const { HttpError, newId, now } = require("../lib/helpers");
 
 function roleById(roleId) {
@@ -68,10 +68,8 @@ function readProfileInput(body) {
   return { displayName, avatarId, roles, projectIdea, tracks };
 }
 
-function profileFromRow(row) {
-  const roleRows = getDb().prepare(
-    "SELECT role_id FROM user_roles WHERE user_id = ?"
-  ).all(row.id);
+async function profileFromRow(row) {
+  const roleRows = await query("SELECT role_id FROM user_roles WHERE user_id = ?", [row.id]);
   const selected = new Set(roleRows.map((roleRow) => roleRow.role_id));
 
   return {
@@ -84,77 +82,74 @@ function profileFromRow(row) {
   };
 }
 
-function getUser(userId) {
-  const row = getDb().prepare("SELECT * FROM users WHERE id = ?").get(userId);
-  return row ? profileFromRow(row) : null;
+async function getUser(userId) {
+  const rows = await query("SELECT * FROM users WHERE id = ?", [userId]);
+  return rows[0] ? profileFromRow(rows[0]) : null;
 }
 
-function listUsers() {
-  return getDb().prepare("SELECT * FROM users ORDER BY created_at").all().map(profileFromRow);
+async function listUsers() {
+  const rows = await query("SELECT * FROM users ORDER BY created_at");
+  return Promise.all(rows.map((row) => profileFromRow(row)));
 }
 
-function saveRoles(userId, roles) {
-  const db = getDb();
-  db.prepare("DELETE FROM user_roles WHERE user_id = ?").run(userId);
-  const insert = db.prepare("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)");
+async function saveRoles(userId, roles) {
+  await query("DELETE FROM user_roles WHERE user_id = ?", [userId]);
   for (const roleId of roles) {
-    insert.run(userId, roleId);
+    await query("INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)", [userId, roleId]);
   }
 }
 
-function addWelcomeLikes(userId) {
-  const insert = getDb().prepare(`
-    INSERT OR IGNORE INTO swipes
-      (id, from_user_id, to_user_id, action, created_at)
-    VALUES (?, ?, ?, 'like', ?)
-  `);
+async function addWelcomeLikes(userId) {
   const createdAt = now();
-
   for (const sample of samples) {
     if (sample.alreadyLikesNewHackers && sample.id !== userId) {
-      insert.run(newId("swipe"), sample.id, userId, createdAt);
+      await query(`
+        INSERT INTO swipes (id, from_user_id, to_user_id, action, created_at)
+        VALUES (?, ?, ?, 'like', ?)
+        ON CONFLICT (from_user_id, to_user_id) DO NOTHING
+      `, [newId("swipe"), sample.id, userId, createdAt]);
     }
   }
 }
 
-function createUser(body) {
+async function createUser(body) {
   const input = readProfileInput(body);
   const userId = newId("user");
-  getDb().prepare(`
+  await query(`
     INSERT INTO users
       (id, display_name, avatar_id, project_idea, tracks_text, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(
+  `, [
     userId,
     input.displayName,
     input.avatarId,
     input.projectIdea,
     input.tracks.join(", "),
     now()
-  );
-  saveRoles(userId, input.roles);
-  addWelcomeLikes(userId);
+  ]);
+  await saveRoles(userId, input.roles);
+  await addWelcomeLikes(userId);
   return getUser(userId);
 }
 
-function updateUser(userId, body) {
-  if (!getUser(userId)) {
+async function updateUser(userId, body) {
+  if (!(await getUser(userId))) {
     throw new HttpError(404, "That hacker was not found.");
   }
 
   const input = readProfileInput(body);
-  getDb().prepare(`
+  await query(`
     UPDATE users
     SET display_name = ?, avatar_id = ?, project_idea = ?, tracks_text = ?
     WHERE id = ?
-  `).run(
+  `, [
     input.displayName,
     input.avatarId,
     input.projectIdea,
     input.tracks.join(", "),
     userId
-  );
-  saveRoles(userId, input.roles);
+  ]);
+  await saveRoles(userId, input.roles);
   return getUser(userId);
 }
 

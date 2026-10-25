@@ -1,4 +1,4 @@
-const { getDb } = require("../db/database");
+const { query } = require("../db/database");
 const { getUser, squadIds } = require("./matchingClient");
 const { HttpError, now } = require("../lib/helpers");
 
@@ -30,23 +30,22 @@ async function setLocation(body) {
   }
 
   await getUser(source.userId);
-  const db = getDb();
 
   if (!source.sharing) {
-    db.prepare("DELETE FROM locations WHERE user_id = ?").run(source.userId);
+    await query("DELETE FROM locations WHERE user_id = ?", [source.userId]);
     return { userId: source.userId, sharing: false };
   }
 
   const point = readPoint(source);
   const updatedAt = now();
-  db.prepare(`
+  await query(`
     INSERT INTO locations (user_id, latitude, longitude, updated_at)
     VALUES (?, ?, ?, ?)
-    ON CONFLICT(user_id) DO UPDATE SET
+    ON CONFLICT (user_id) DO UPDATE SET
       latitude = excluded.latitude,
       longitude = excluded.longitude,
       updated_at = excluded.updated_at
-  `).run(source.userId, point.latitude, point.longitude, updatedAt);
+  `, [source.userId, point.latitude, point.longitude, updatedAt]);
 
   return {
     userId: source.userId,
@@ -59,7 +58,7 @@ async function setLocation(body) {
 
 async function listVisibleLocations(userId) {
   const allowed = await squadIds(userId);
-  const rows = getDb().prepare("SELECT * FROM locations").all();
+  const rows = await query("SELECT * FROM locations");
   return rows
     .filter((row) => allowed.has(row.user_id))
     .map((row) => ({

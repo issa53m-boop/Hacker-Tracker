@@ -1,5 +1,5 @@
 const config = require("../config/profile.config");
-const { getDb } = require("../db/database");
+const { query } = require("../db/database");
 const { getUser, listUsers } = require("./profiles");
 const { HttpError, newId, now } = require("../lib/helpers");
 
@@ -63,15 +63,17 @@ function matchBrief(row) {
   };
 }
 
-function findMatchRow(userId, otherUserId) {
+async function findMatchRow(userId, otherUserId) {
   const [low, high] = userId < otherUserId ? [userId, otherUserId] : [otherUserId, userId];
-  return getDb().prepare(
-    "SELECT * FROM matches WHERE user_low_id = ? AND user_high_id = ?"
-  ).get(low, high);
+  const rows = await query(
+    "SELECT * FROM matches WHERE user_low_id = ? AND user_high_id = ?",
+    [low, high]
+  );
+  return rows[0] || null;
 }
 
-function createMatch(userId, otherUserId) {
-  const existing = findMatchRow(userId, otherUserId);
+async function createMatch(userId, otherUserId) {
+  const existing = await findMatchRow(userId, otherUserId);
   if (existing) {
     return matchBrief(existing);
   }
@@ -83,14 +85,14 @@ function createMatch(userId, otherUserId) {
     user_high_id: high,
     created_at: now()
   };
-  getDb().prepare(`
+  await query(`
     INSERT INTO matches (id, user_low_id, user_high_id, created_at)
     VALUES (?, ?, ?, ?)
-  `).run(row.id, row.user_low_id, row.user_high_id, row.created_at);
+  `, [row.id, row.user_low_id, row.user_high_id, row.created_at]);
   return matchBrief(row);
 }
 
-function recordSwipe(fromUserId, toUserId, action) {
+async function recordSwipe(fromUserId, toUserId, action) {
   if (!fromUserId || !toUserId) {
     throw new HttpError(400, "fromUserId and toUserId are required.");
   }
@@ -98,38 +100,39 @@ function recordSwipe(fromUserId, toUserId, action) {
     throw new HttpError(400, "You cannot connect with yourself.");
   }
 
-  const from = getUser(fromUserId);
-  const to = getUser(toUserId);
+  const from = await getUser(fromUserId);
+  const to = await getUser(toUserId);
   if (!from || !to) {
     throw new HttpError(404, "One of those hackers was not found.");
   }
 
   const savedAction = normalizeAction(action);
-  const db = getDb();
-  const existing = db.prepare(
-    "SELECT * FROM swipes WHERE from_user_id = ? AND to_user_id = ?"
-  ).get(fromUserId, toUserId);
+  const existingRows = await query(
+    "SELECT * FROM swipes WHERE from_user_id = ? AND to_user_id = ?",
+    [fromUserId, toUserId]
+  );
+  const existing = existingRows[0];
 
   if (existing) {
     return {
       swipe: swipeJson(existing),
-      match: existing.action === "like" ? matchBriefOrNull(findMatchRow(fromUserId, toUserId)) : null
+      match: existing.action === "like" ? matchBriefOrNull(await findMatchRow(fromUserId, toUserId)) : null
     };
   }
 
-  db.prepare(`
+  await query(`
     INSERT INTO swipes (id, from_user_id, to_user_id, action, created_at)
     VALUES (?, ?, ?, ?, ?)
-  `).run(newId("swipe"), fromUserId, toUserId, savedAction, now());
+  `, [newId("swipe"), fromUserId, toUserId, savedAction, now()]);
 
   let match = null;
   if (savedAction === "like") {
-    const reverse = db.prepare(`
+    const reverse = await query(`
       SELECT id FROM swipes
       WHERE from_user_id = ? AND to_user_id = ? AND action = 'like'
-    `).get(toUserId, fromUserId);
-    if (reverse) {
-      match = createMatch(fromUserId, toUserId);
+    `, [toUserId, fromUserId]);
+    if (reverse[0]) {
+      match = await createMatch(fromUserId, toUserId);
     }
   }
 
@@ -143,19 +146,16 @@ function matchBriefOrNull(row) {
   return row ? matchBrief(row) : null;
 }
 
-function listCandidates(userId) {
-  const me = getUser(userId);
+async function listCandidates(userId) {
+  const me = await getUser(userId);
   if (!me) {
     throw new HttpError(404, "That hacker was not found.");
   }
 
-  const swiped = new Set(
-    getDb().prepare("SELECT to_user_id FROM swipes WHERE from_user_id = ?")
-      .all(userId)
-      .map((row) => row.to_user_id)
-  );
+  const swipedRows = await query("SELECT to_user_id FROM swipes WHERE from_user_id = ?", [userId]);
+  const swiped = new Set(swipedRows.map((row) => row.to_user_id));
 
-  return listUsers()
+  return (await listUsers())
     .filter((person) => person.userId !== userId && !swiped.has(person.userId))
     .map((person) => ({ person, score: scorePair(me, person) }))
     .sort((left, right) => right.score - left.score || left.person.displayName.localeCompare(right.person.displayName))
@@ -169,16 +169,17 @@ function roleMatches(partner, roleQuery) {
   });
 }
 
-function listMatchRows(userId) {
-  return getDb().prepare(`
+async function listMatchRows(userId) {
+  return query(`
     SELECT * FROM matches
     WHERE user_low_id = ? OR user_high_id = ?
     ORDER BY created_at DESC
-  `).all(userId, userId);
+  `, [userId, userId]);
 }
 
-function getMatchRow(matchId) {
-  return getDb().prepare("SELECT * FROM matches WHERE id = ?").get(matchId);
+async function getMatchRow(matchId) {
+  const rows = await query("SELECT * FROM matches WHERE id = ?", [matchId]);
+  return rows[0] || null;
 }
 
 module.exports = {

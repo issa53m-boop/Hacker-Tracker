@@ -1,4 +1,4 @@
-const { getDb } = require("../db/database");
+const { query } = require("../db/database");
 const { getMatch, memberIds } = require("./matchingClient");
 const { HttpError, newId, now } = require("../lib/helpers");
 
@@ -40,10 +40,10 @@ async function sendMessage(matchId, fromUserId, text) {
     text: message,
     created_at: now()
   };
-  getDb().prepare(`
+  await query(`
     INSERT INTO messages (id, match_id, from_user_id, text, created_at)
     VALUES (?, ?, ?, ?, ?)
-  `).run(row.id, row.match_id, row.from_user_id, row.text, row.created_at);
+  `, [row.id, row.match_id, row.from_user_id, row.text, row.created_at]);
 
   return {
     messageId: row.id,
@@ -61,9 +61,10 @@ async function listMessages(matchId, userId) {
   const members = await confirmedMembers(matchId);
   requireMember(members, userId);
 
-  const rows = getDb().prepare(`
-    SELECT * FROM messages WHERE match_id = ? ORDER BY created_at ASC
-  `).all(matchId);
+  const rows = await query(
+    "SELECT * FROM messages WHERE match_id = ? ORDER BY created_at ASC",
+    [matchId]
+  );
 
   return rows.map((row) => ({
     messageId: row.id,
