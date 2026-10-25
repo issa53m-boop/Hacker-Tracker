@@ -14,12 +14,15 @@ const candidates = require("./routes/candidates");
 const swipes = require("./routes/swipes");
 const { userMatches, matchRouter } = require("./routes/matches");
 const gemini = require("./routes/gemini");
+const preview = require("./routes/preview");
 
 initDb();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+app.use("/", preview);
 
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, service: "hacker-tracker-matching" });
