@@ -40,6 +40,7 @@ router.get("/", (req, res) => {
 <body>
   <h1>Your backend is working</h1>
   <p>This is a test page for the matching server. The comic website is separate.</p>
+  <p>Ask Muse Spark is ready at the server. It uses the plain match sentence until a Muse key is added on this computer.</p>
   ${blocks.join("")}
 </body>
 </html>`);

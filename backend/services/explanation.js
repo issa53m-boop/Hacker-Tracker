@@ -1,6 +1,7 @@
 const { sharedTracks, complementaryRoles } = require("./matching");
 const { joinList } = require("../lib/helpers");
 const { rewriteWhy } = require("./gemini");
+const { rewriteWhy: rewriteWhyWithMuse } = require("./muse");
 
 function templateForUser(me, them) {
   const shared = sharedTracks(me.tracks, them.tracks);
@@ -76,4 +77,18 @@ async function askAboutPair(me, them, question) {
   return why;
 }
 
-module.exports = { templateForUser, templateForPair, askAboutPair };
+async function askMuseAboutPair(me, them, question) {
+  const why = templateForUser(me, them);
+  try {
+    const text = await rewriteWhyWithMuse({ me, them, why, question });
+    if (text) {
+      why.source = "muse";
+      why.text = text;
+    }
+  } catch (error) {
+    console.error("Muse Spark fallback:", error.message);
+  }
+  return why;
+}
+
+module.exports = { templateForUser, templateForPair, askAboutPair, askMuseAboutPair };

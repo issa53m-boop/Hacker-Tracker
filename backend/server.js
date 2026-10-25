@@ -14,6 +14,7 @@ const candidates = require("./routes/candidates");
 const swipes = require("./routes/swipes");
 const { userMatches, matchRouter } = require("./routes/matches");
 const gemini = require("./routes/gemini");
+const muse = require("./routes/muse");
 const preview = require("./routes/preview");
 
 initDb();
@@ -38,6 +39,7 @@ app.use("/api/users", userMatches);
 app.use("/api/swipes", swipes);
 app.use("/api/matches", matchRouter);
 app.use("/api/gemini", gemini);
+app.use("/api/muse", muse);
 
 app.use((err, req, res, next) => {
   if (err.status) {
