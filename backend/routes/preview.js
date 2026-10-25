@@ -13,7 +13,7 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;");
 }
 
-router.get("/", asyncRoute(async (req, res) => {
+router.get("/preview", asyncRoute(async (req, res) => {
   const people = await listUsers();
   const blocks = [];
   for (const person of people) {
@@ -43,8 +43,8 @@ router.get("/", asyncRoute(async (req, res) => {
 </head>
 <body>
   <h1>Your backend is working</h1>
-  <p>This is a test page for the matching server. The comic website is separate.</p>
-  <p>Ask Muse Spark is ready at the server. It uses the plain match sentence until a Muse key is added on this computer.</p>
+  <p>This is a test page for the matching server. The comic website is on the home page.</p>
+  <p>Ask Muse Spark rewrites a match sentence only when MODEL_API_KEY is set. Until then, the website shows the plain sentence.</p>
   ${blocks.join("")}
 </body>
 </html>`);

@@ -553,6 +553,16 @@
             text-transform: uppercase;
         }
 
+        .match-why-banner {
+            margin: 10px 0 12px;
+            font-size: 15px;
+            font-weight: 700;
+            line-height: 1.35;
+            color: #f8fafc;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+            min-height: 2.6em;
+        }
+
         .match-role {
             font-size: 13px;
             font-weight: 800;
@@ -602,7 +612,7 @@
         }
 
         .match-card:hover .match-bio-drawer {
-            max-height: 220px;
+            max-height: 280px;
             opacity: 1;
             padding: 14px 18px;
             margin-bottom: 14px;
@@ -1085,6 +1095,21 @@
             margin-bottom: 18px;
             line-height: 1.4;
         }
+
+        .setup-error {
+            display: none;
+            margin-top: 12px;
+            color: #b91c1c;
+            font-weight: 700;
+            line-height: 1.4;
+        }
+
+        .why-note {
+            margin-top: 6px;
+            color: #cbd5e1;
+            font-size: 12px;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="view-setup-bg">
@@ -1149,6 +1174,7 @@
                 </div>
 
                 <button class="btn" id="find-squad-btn" onclick="launchApp()">Find My Squad ⚡</button>
+                <p id="setup-error" class="setup-error"></p>
             </div>
         </div>
 
@@ -1164,6 +1190,7 @@
                     <div class="match-content">
                         <div class="match-name" id="match-name">Gwen Stacy</div>
                         <div class="match-role" id="match-role">The Interface (Frontend)</div>
+                        <div class="match-why-banner" id="match-why-banner">Save your profile to ask Muse Spark why you match.</div>
                         
                         <div class="match-bio-drawer" id="match-bio">
                             <div class="bio-line">
@@ -1340,19 +1367,102 @@
             }
         };
 
-        const candidates = [
-            { id: 'c1', name: "Gwen Stacy", role: "The Interface (Frontend)", bio: "Building: Cross-dimensional comic shader engine.\nTrack: Meta WebXR Challenge", avatar: "🕷️" },
-            { id: 'c2', name: "Miguel O'Hara", role: "The Architect (Backend)", bio: "Building: Real-time multiverse synchronization mesh.\nTrack: Infrastructure & Security", avatar: "🛡️" },
-            { id: 'c3', name: "Peni Parker", role: "The Visionary (Design / UI)", bio: "Building: Mech-suit HUD holographic interface.\nTrack: AI & Robotics Track", avatar: "🤖" },
-            { id: 'c4', name: "Hobie Brown", role: "The Mastermind (Pitch / PM)", bio: "Building: Decentralized anti-establishment hackathon tracker.\nTrack: Open Source Social Good", avatar: "🎸" }
-        ];
+        const API_BASE = location.protocol === "file:" ? "http://localhost:3001" : "";
+        const ROLE_IDS = {
+            "The Architect": "architect",
+            "The Interface": "interface",
+            "The Visionary": "visionary",
+            "The Mastermind": "mastermind"
+        };
 
+        let candidates = [];
         let currentCandidateIndex = 0;
         let uploadedAvatarUrl = null;
         let myConnectedMatches = [];
+        let myUserId = null;
         let isAnimating = false;
+        let savingProfile = false;
         let activeRoles = [];
         let selectedRoleFilter = 'ALL';
+        let reasonToken = 0;
+
+        function escapeHtml(value) {
+            return String(value == null ? "" : value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function wait(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        async function api(method, path, body) {
+            let response;
+            try {
+                response = await fetch(API_BASE + path, {
+                    method,
+                    headers: body ? { "Content-Type": "application/json" } : undefined,
+                    body: body ? JSON.stringify(body) : undefined
+                });
+            } catch (error) {
+                throw new Error("The matching server is not reachable. Start it and open this page from that server.");
+            }
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || "The server could not complete that request.");
+            }
+            return data;
+        }
+
+        function showSetupError(message) {
+            const el = document.getElementById("setup-error");
+            el.textContent = message;
+            el.style.display = "block";
+        }
+
+        function clearSetupError() {
+            const el = document.getElementById("setup-error");
+            el.textContent = "";
+            el.style.display = "none";
+        }
+
+        function roleLabel(person) {
+            if (!person.roles || person.roles.length === 0) return "Hacker";
+            return person.roles.map((role) => `${role.name} (${role.track})`).join(" & ");
+        }
+
+        function toCard(person) {
+            const tracks = (person.tracks || []).join(", ") || "General Track";
+            return {
+                id: person.userId,
+                name: person.displayName,
+                role: roleLabel(person),
+                bio: `Building: ${person.projectIdea || "Hackathon App"}\nTrack: ${tracks}`,
+                avatar: "🕷️",
+                why: "",
+                whySource: ""
+            };
+        }
+
+        function museNote(source) {
+            if (source === "muse") return "";
+            return "Muse Spark needs MODEL_API_KEY on the server. This is the plain match sentence.";
+        }
+
+        function setWhyBanner(text) {
+            const banner = document.getElementById("match-why-banner");
+            if (banner) banner.textContent = text;
+        }
+
+        async function askMuse(candidateUserId) {
+            return api("POST", "/api/muse/ask", {
+                userId: myUserId,
+                candidateUserId,
+                question: "Why would we make a good squad?"
+            });
+        }
 
         document.getElementById('avatar-file').addEventListener('change', function(e) {
             const file = e.target.files && e.target.files[0];
@@ -1368,18 +1478,48 @@
         });
 
         function updateMatchCard() {
-            if (!candidates || candidates.length === 0) return;
-            const c = candidates[currentCandidateIndex];
             const avatarBox = document.getElementById('match-avatar');
-            
+            const actions = document.querySelector('.match-actions');
+
+            if (!myUserId) {
+                avatarBox.innerHTML = '🕸️';
+                document.getElementById('match-name').innerText = 'Build your profile';
+                document.getElementById('match-role').innerText = 'Then the deck opens';
+                setWhyBanner('Save your profile to ask Muse Spark why you match.');
+                document.getElementById('match-bio').innerHTML = `
+                    <div class="bio-line">
+                        <span class="bio-text">Save your hacker name and roles. The deck and Muse sentences come from the matching server.</span>
+                    </div>
+                `;
+                if (actions) actions.style.display = 'none';
+                return;
+            }
+
+            if (!candidates.length) {
+                avatarBox.innerHTML = '🕸️';
+                document.getElementById('match-name').innerText = 'Deck cleared';
+                document.getElementById('match-role').innerText = 'No hackers left';
+                setWhyBanner('You have already chosen Connect or Maybe later for everyone on the deck.');
+                document.getElementById('match-bio').innerHTML = `
+                    <div class="bio-line">
+                        <span class="bio-text">You have already chosen Connect or Maybe later for everyone on the deck.</span>
+                    </div>
+                `;
+                if (actions) actions.style.display = 'none';
+                return;
+            }
+
+            if (actions) actions.style.display = 'flex';
+            const c = candidates[currentCandidateIndex];
             if (c.avatar && c.avatar.startsWith('data:')) {
-                avatarBox.innerHTML = `<img src="${c.avatar}" alt="${c.name}">`;
+                avatarBox.innerHTML = `<img src="${escapeHtml(c.avatar)}" alt="${escapeHtml(c.name)}">`;
             } else {
-                avatarBox.innerHTML = c.avatar || '🕷️';
+                avatarBox.innerHTML = escapeHtml(c.avatar || '🕷️');
             }
 
             document.getElementById('match-name').innerText = c.name;
             document.getElementById('match-role').innerText = c.role;
+            setWhyBanner('Asking Muse Spark...');
 
             const bioParts = c.bio ? c.bio.split('\n') : ['Building: Hackathon App', 'Track: General Track'];
             const buildText = bioParts[0] ? bioParts[0].replace(/^Building:\s*/i, '') : 'Custom Project';
@@ -1388,13 +1528,39 @@
             document.getElementById('match-bio').innerHTML = `
                 <div class="bio-line">
                     <span class="bio-label">Building:</span>
-                    <span class="bio-text">${buildText}</span>
+                    <span class="bio-text">${escapeHtml(buildText)}</span>
                 </div>
                 <div class="bio-line">
                     <span class="bio-label">Track:</span>
-                    <span class="bio-text">${trackText}</span>
+                    <span class="bio-text">${escapeHtml(trackText)}</span>
                 </div>
+                <div class="bio-line">
+                    <span class="bio-label">Why:</span>
+                    <span class="bio-text" id="match-why">Asking Muse Spark...</span>
+                </div>
+                <div class="why-note" id="match-why-note"></div>
             `;
+            fillWhy(c);
+        }
+
+        async function fillWhy(card) {
+            const token = ++reasonToken;
+            try {
+                const muse = await askMuse(card.id);
+                if (token !== reasonToken) return;
+                card.why = muse.text || "";
+                card.whySource = muse.source || "template";
+                const whyEl = document.getElementById("match-why");
+                const noteEl = document.getElementById("match-why-note");
+                if (whyEl) whyEl.textContent = card.why;
+                if (noteEl) noteEl.textContent = museNote(card.whySource);
+                setWhyBanner(museNote(card.whySource) ? `${card.why} ${museNote(card.whySource)}` : card.why);
+            } catch (error) {
+                if (token !== reasonToken) return;
+                const whyEl = document.getElementById("match-why");
+                if (whyEl) whyEl.textContent = error.message;
+                setWhyBanner(error.message);
+            }
         }
 
         function showComicPop(text, bgColor, textColor = "#ffffff") {
@@ -1410,40 +1576,24 @@
             }, 650);
         }
 
-        function triggerPassAnimation() {
-            if (isAnimating) return;
-            isAnimating = true;
-
-            AudioSynth.playKickSFX();
-            showComicPop("KICK! 💥", "#ef4444");
-
-            const card = document.getElementById('active-match-card');
-            card.classList.add('anim-pass-flyout');
-
-            setTimeout(() => {
-                nextCandidate();
-                card.className = "match-card anim-card-enter";
-                setTimeout(() => {
-                    card.classList.remove('anim-card-enter');
-                    isAnimating = false;
-                }, 450);
-            }, 500);
+        function dropVisibleCandidate() {
+            candidates.splice(currentCandidateIndex, 1);
+            if (currentCandidateIndex >= candidates.length) {
+                currentCandidateIndex = 0;
+            }
+            updateMatchCard();
         }
 
-        function triggerConnectAnimation() {
-            if (isAnimating) return;
-            isAnimating = true;
+        async function finishCardExit(card) {
+            await wait(520);
+            dropVisibleCandidate();
+            card.className = "match-card anim-card-enter";
+            await wait(450);
+            card.classList.remove('anim-card-enter');
+        }
 
-            const current = candidates[currentCandidateIndex];
-            const role = current.role;
-            const card = document.getElementById('active-match-card');
-
-            if (!myConnectedMatches.some(m => m.id === current.id || m.name === current.name)) {
-                myConnectedMatches.push(current);
-                renderSquadGrid();
-                updateBadgeCounter();
-            }
-
+        function playConnectCelebration(current, card) {
+            const role = current.role || "";
             if (role.includes("Architect")) {
                 AudioSynth.playArchitectSFX();
                 showComicPop("SYNCHRONIZED! 💻", "#0284c7");
@@ -1461,20 +1611,67 @@
                 showComicPop("JACKPOT! 👑", "#f59e0b");
                 card.classList.add('anim-connect-mastermind');
             }
-
-            setTimeout(() => {
-                nextCandidate();
-                card.className = "match-card anim-card-enter";
-                setTimeout(() => {
-                    card.classList.remove('anim-card-enter');
-                    isAnimating = false;
-                }, 450);
-            }, 550);
         }
 
-        function nextCandidate() {
-            currentCandidateIndex = (currentCandidateIndex + 1) % candidates.length;
-            updateMatchCard();
+        async function triggerPassAnimation() {
+            if (isAnimating) return;
+            const current = candidates[currentCandidateIndex];
+            if (!current || !myUserId) return;
+            isAnimating = true;
+            const card = document.getElementById('active-match-card');
+
+            try {
+                await api("POST", "/api/swipes", {
+                    fromUserId: myUserId,
+                    toUserId: current.id,
+                    action: "pass"
+                });
+                AudioSynth.playKickSFX();
+                showComicPop("KICK! 💥", "#ef4444");
+                card.classList.add('anim-pass-flyout');
+                await finishCardExit(card);
+            } catch (error) {
+                card.className = "match-card";
+                console.error(error);
+                showComicPop("NOT SAVED", "#ef4444");
+            } finally {
+                isAnimating = false;
+            }
+        }
+
+        async function triggerConnectAnimation() {
+            if (isAnimating) return;
+            const current = candidates[currentCandidateIndex];
+            if (!current || !myUserId) return;
+            isAnimating = true;
+            const card = document.getElementById('active-match-card');
+
+            try {
+                const result = await api("POST", "/api/swipes", {
+                    fromUserId: myUserId,
+                    toUserId: current.id,
+                    action: "connect"
+                });
+                if (result.match) {
+                    playConnectCelebration(current, card);
+                    try {
+                        await refreshSquad();
+                    } catch (error) {
+                        console.error(error);
+                    }
+                } else {
+                    AudioSynth.playInterfaceSFX();
+                    showComicPop("SENT! ⚡", "#8b5cf6");
+                    card.classList.add('anim-connect-interface');
+                }
+                await finishCardExit(card);
+            } catch (error) {
+                card.className = "match-card";
+                console.error(error);
+                showComicPop("NOT SAVED", "#ef4444");
+            } finally {
+                isAnimating = false;
+            }
         }
 
         function updateBadgeCounter() {
@@ -1497,7 +1694,8 @@
                 const matchesSearch = !searchVal || 
                     member.name.toLowerCase().includes(searchVal) || 
                     member.role.toLowerCase().includes(searchVal) || 
-                    (member.bio && member.bio.toLowerCase().includes(searchVal));
+                    (member.bio && member.bio.toLowerCase().includes(searchVal)) ||
+                    (member.why && member.why.toLowerCase().includes(searchVal));
                 return matchesRole && matchesSearch;
             });
 
@@ -1531,8 +1729,15 @@
                 const tagClass = getRoleTagClass(member.role);
 
                 const avatarHTML = member.avatar && member.avatar.startsWith('data:') 
-                    ? `<img src="${member.avatar}" alt="${member.name}">` 
-                    : `<span>${member.avatar || '🕷️'}</span>`;
+                    ? `<img src="${escapeHtml(member.avatar)}" alt="${escapeHtml(member.name)}">` 
+                    : `<span>${escapeHtml(member.avatar || '🕷️')}</span>`;
+                const whyNote = museNote(member.whySource);
+                const whyRow = member.why
+                    ? `<div class="squad-detail-row"><span class="squad-detail-label">Why: </span>${escapeHtml(member.why)}</div>`
+                    : "";
+                const noteRow = whyNote
+                    ? `<div class="squad-detail-row"><span class="squad-detail-label">Note: </span>${escapeHtml(whyNote)}</div>`
+                    : "";
 
                 return `
                     <div class="squad-card">
@@ -1540,26 +1745,57 @@
                             <div class="squad-card-top">
                                 <div class="squad-avatar-frame">${avatarHTML}</div>
                                 <div>
-                                    <div class="squad-hero-name">${member.name}</div>
-                                    <div class="role-tag ${tagClass}">${member.role}</div>
+                                    <div class="squad-hero-name">${escapeHtml(member.name)}</div>
+                                    <div class="role-tag ${tagClass}">${escapeHtml(member.role)}</div>
                                 </div>
                             </div>
                             <div class="squad-details">
                                 <div class="squad-detail-row">
-                                    <span class="squad-detail-label">Building: </span>${buildText}
+                                    <span class="squad-detail-label">Building: </span>${escapeHtml(buildText)}
                                 </div>
                                 <div class="squad-detail-row">
-                                    <span class="squad-detail-label">Track: </span>${trackText}
+                                    <span class="squad-detail-label">Track: </span>${escapeHtml(trackText)}
                                 </div>
+                                ${whyRow}
+                                ${noteRow}
                             </div>
                         </div>
                         <div class="squad-actions">
-                            <button class="squad-btn-ping" onclick="pingSquadMember('${member.name}')">Discord / Ping ⚡</button>
-                            <button class="squad-btn-remove" onclick="removeSquadMember('${member.id || member.name}')">✕</button>
+                            <button class="squad-btn-ping" data-name="${escapeHtml(member.name)}" onclick="pingSquadMember(this)">Discord / Ping ⚡</button>
+                            <button class="squad-btn-remove" onclick="removeSquadMember('${escapeHtml(member.id || member.name)}')">✕</button>
                         </div>
                     </div>
                 `;
             }).join('');
+        }
+
+        async function refreshDeck() {
+            const data = await api("GET", `/api/users/${myUserId}/candidates`);
+            candidates = (data.candidates || []).map((person) => toCard(person));
+            currentCandidateIndex = 0;
+            updateMatchCard();
+        }
+
+        async function refreshSquad() {
+            const data = await api("GET", `/api/users/${myUserId}/matches`);
+            const entries = data.matches || [];
+            myConnectedMatches = await Promise.all(entries.map(async (entry) => {
+                const card = toCard(entry.partner);
+                card.why = entry.why && entry.why.text ? entry.why.text : "";
+                card.whySource = entry.why && entry.why.source ? entry.why.source : "template";
+                try {
+                    const muse = await askMuse(entry.partner.userId);
+                    if (muse && muse.text) {
+                        card.why = muse.text;
+                        card.whySource = muse.source || "template";
+                    }
+                } catch (error) {
+                    console.error(error);
+                }
+                return card;
+            }));
+            renderSquadGrid();
+            updateBadgeCounter();
         }
 
         function setRoleFilter(roleKey, btnEl) {
@@ -1573,7 +1809,8 @@
             renderSquadGrid();
         }
 
-        function pingSquadMember(heroName) {
+        function pingSquadMember(button) {
+            const heroName = button.getAttribute("data-name") || "your teammate";
             AudioSynth.playInterfaceSFX();
             showComicPop(`PING SENT TO ${heroName.toUpperCase()}! 📲`, "#8b5cf6");
         }
@@ -1609,9 +1846,11 @@
             }
         }
 
-        function launchApp() {
+        async function launchApp() {
+            if (savingProfile) return;
             const nameField = document.getElementById('name');
             const nameVal = nameField ? nameField.value.trim() : '';
+            clearSetupError();
 
             if (!nameVal) {
                 nameField.style.borderColor = '#ef4444';
@@ -1623,33 +1862,73 @@
             nameField.style.borderColor = '#cbd5e1';
             nameField.style.boxShadow = 'none';
 
-            const buildingVal = document.getElementById('building').value.trim() || 'Custom Hackathon App';
-            const pitchesVal = document.getElementById('pitches').value.trim() || 'Open Challenge Track';
             const selectedRoleBoxes = Array.from(document.querySelectorAll('input[name="role"]:checked')).map(cb => cb.value);
-            const roleVal = selectedRoleBoxes.length > 0 ? selectedRoleBoxes.join(' & ') : "The Visionary (Design / UI)";
-
-            const userProfile = {
-                id: 'user_profile',
-                name: nameVal,
-                role: roleVal,
-                bio: `Building: ${buildingVal}\nTrack: ${pitchesVal}`,
-                avatar: uploadedAvatarUrl || '🦸‍♂️'
-            };
-
-            const existingUserIdx = candidates.findIndex(c => c.id === 'user_profile');
-            if (existingUserIdx !== -1) {
-                candidates.splice(existingUserIdx, 1);
+            const roleIds = selectedRoleBoxes.map((name) => ROLE_IDS[name]).filter(Boolean);
+            if (roleIds.length === 0) {
+                showSetupError("Pick at least one role.");
+                return;
             }
 
-            candidates.unshift(userProfile);
-            currentCandidateIndex = 0;
+            const payload = {
+                displayName: nameVal,
+                avatarId: "spider",
+                roles: roleIds,
+                projectIdea: document.getElementById('building').value.trim(),
+                tracks: document.getElementById('pitches').value.trim()
+            };
 
-            const activeCard = document.getElementById('active-match-card');
-            activeCard.className = 'match-card';
-            isAnimating = false;
+            const button = document.getElementById('find-squad-btn');
+            savingProfile = true;
+            button.disabled = true;
+            try {
+                const profile = myUserId
+                    ? await api("PUT", `/api/users/${myUserId}`, payload)
+                    : await api("POST", "/api/users", payload);
+                myUserId = profile.userId;
+                localStorage.setItem("hackerTrackerUserId", myUserId);
+                await refreshDeck();
+                await refreshSquad();
+                const activeCard = document.getElementById('active-match-card');
+                activeCard.className = 'match-card';
+                isAnimating = false;
+                switchView('match');
+            } catch (error) {
+                showSetupError(error.message);
+            } finally {
+                savingProfile = false;
+                button.disabled = false;
+            }
+        }
 
-            switchView('match');
-            updateMatchCard();
+        function applySavedProfile(profile) {
+            document.getElementById('name').value = profile.displayName || "";
+            document.getElementById('building').value = profile.projectIdea || "";
+            document.getElementById('pitches').value = (profile.tracks || []).join(", ");
+            const selected = new Set((profile.roles || []).map((role) => role.id));
+            document.querySelectorAll('input[name="role"]').forEach((box) => {
+                box.checked = selected.has(ROLE_IDS[box.value]);
+            });
+            const firstRole = document.querySelector('input[name="role"]');
+            if (firstRole) firstRole.dispatchEvent(new Event("change"));
+        }
+
+        async function restoreProfile() {
+            const savedId = localStorage.getItem("hackerTrackerUserId");
+            if (!savedId) return;
+            try {
+                const profile = await api("GET", `/api/users/${savedId}`);
+                myUserId = profile.userId;
+                applySavedProfile(profile);
+                await refreshDeck();
+                await refreshSquad();
+            } catch (error) {
+                if (error.message === "That hacker was not found.") {
+                    localStorage.removeItem("hackerTrackerUserId");
+                    myUserId = null;
+                    return;
+                }
+                showSetupError(error.message);
+            }
         }
 
         const roleParticles = {
@@ -1701,6 +1980,7 @@
             updateMatchCard();
             renderSquadGrid();
             updateBadgeCounter();
+            restoreProfile();
         };
     </script>
 </body>

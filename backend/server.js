@@ -23,6 +23,10 @@ app.use(express.json());
 
 app.use("/", preview);
 
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "index.html"));
+});
+
 app.get("/api/health", (req, res) => {
   res.json({ ok: true, service: "hacker-tracker-matching" });
 });
