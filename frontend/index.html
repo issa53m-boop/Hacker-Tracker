@@ -819,6 +819,36 @@
             margin-top: 4px;
         }
 
+        .demo-tools {
+            background: #f8fafc;
+            border: 2px solid #0f172a;
+            border-radius: 16px;
+            padding: 14px 16px;
+            margin-bottom: 18px;
+            box-shadow: 3px 3px 0px #0f172a;
+        }
+
+        .demo-tools-title {
+            font-family: 'Bangers', cursive;
+            letter-spacing: 1px;
+            font-size: 22px;
+            margin-bottom: 8px;
+        }
+
+        .demo-tools-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .demo-result {
+            margin: 10px 0 0;
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1.4;
+            color: #0f172a;
+        }
+
         .matches-toolbar {
             display: flex;
             flex-direction: column;
@@ -1195,6 +1225,17 @@
                     </div>
                 </div>
 
+                <div class="demo-tools">
+                    <div class="demo-tools-title">Try the squad features</div>
+                    <div class="demo-tools-row">
+                        <button class="chip-btn" id="check-in-btn" type="button">Check in</button>
+                        <button class="chip-btn" id="location-btn" type="button">Share location</button>
+                        <button class="chip-btn" id="team-btn" type="button">Start team</button>
+                        <button class="chip-btn" id="muse-btn" type="button">Ask Muse why</button>
+                    </div>
+                    <p id="demo-result" class="demo-result">Connect with a hacker, then try check-in, location, a team, or Muse.</p>
+                </div>
+
                 <div class="matches-toolbar">
                     <input type="text" id="squad-search" class="matches-search-input" placeholder="🔍 Search squad members by name or project..." oninput="filterSquadGrid()">
                     <div class="role-filter-chips">
@@ -1377,17 +1418,19 @@
                 .replace(/"/g, "&quot;");
         }
 
-        function personToCard(person, matchId) {
+        function personToCard(person, matchId, whyText) {
             const role = person.roles && person.roles.length
                 ? person.roles.map((role) => `${role.name} (${role.track})`).join(" & ")
                 : "The Visionary (Design / UI)";
             const tracks = Array.isArray(person.tracks) ? person.tracks.join(", ") : (person.tracks || "Open Challenge Track");
+            const why = whyText || (person.why && person.why.text) || "";
             return {
                 id: person.userId,
                 matchId: matchId || "",
                 name: person.displayName,
                 role,
                 bio: `Building: ${person.projectIdea || "Custom Hackathon App"}\nTrack: ${tracks || "Open Challenge Track"}`,
+                why,
                 avatar: "🕷️"
             };
         }
@@ -1454,6 +1497,10 @@
                 <div class="bio-line">
                     <span class="bio-label">Track:</span>
                     <span class="bio-text">${escapeHtml(trackText)}</span>
+                </div>
+                <div class="bio-line">
+                    <span class="bio-label">Why:</span>
+                    <span class="bio-text">${escapeHtml(c.why || "Save your profile to see why you match.")}</span>
                 </div>
             `;
         }
@@ -1605,7 +1652,8 @@
                 const matchesSearch = !searchVal || 
                     member.name.toLowerCase().includes(searchVal) || 
                     member.role.toLowerCase().includes(searchVal) || 
-                    (member.bio && member.bio.toLowerCase().includes(searchVal));
+                    (member.bio && member.bio.toLowerCase().includes(searchVal)) ||
+                    (member.why && member.why.toLowerCase().includes(searchVal));
                 return matchesRole && matchesSearch;
             });
 
@@ -1658,6 +1706,9 @@
                                 </div>
                                 <div class="squad-detail-row">
                                     <span class="squad-detail-label">Track: </span>${escapeHtml(trackText)}
+                                </div>
+                                <div class="squad-detail-row">
+                                    <span class="squad-detail-label">Why we connected: </span>${escapeHtml(member.why || "You both pressed Connect.")}
                                 </div>
                             </div>
                         </div>
@@ -1758,7 +1809,9 @@
                 return;
             }
             const data = await api(`/api/users/${encodeURIComponent(myUserId)}/matches`);
-            myConnectedMatches = (data.matches || []).map((entry) => personToCard(entry.partner, entry.matchId));
+            myConnectedMatches = (data.matches || []).map((entry) => {
+                return personToCard(entry.partner, entry.matchId, entry.why && entry.why.text);
+            });
             renderSquadGrid();
             updateBadgeCounter();
         }
@@ -1872,6 +1925,104 @@
                 }
             }
         });
+
+        function showDemoResult(text) {
+            const spot = document.getElementById('demo-result');
+            if (spot) spot.innerText = text;
+        }
+
+        function requireProfile() {
+            if (myUserId) return true;
+            showDemoResult("Set up your profile first, then come back to My Matches.");
+            showComicPop("Set up your profile first.", "#ef4444", "#ffffff", 1600);
+            return false;
+        }
+
+        async function checkInDemo() {
+            if (!requireProfile()) return;
+            try {
+                const result = await api("/api/check-in", {
+                    method: "POST",
+                    body: JSON.stringify({ userId: myUserId, code: "THWIP" })
+                });
+                showDemoResult(`Checked in. Code accepted at ${result.checkedInAt || "just now"}.`);
+                showComicPop("THWIP! ✅", "#10b981");
+            } catch (error) {
+                showDemoResult(error.message);
+                showError(error);
+            }
+        }
+
+        async function shareLocationDemo() {
+            if (!requireProfile()) return;
+            try {
+                const result = await api("/api/locations", {
+                    method: "POST",
+                    body: JSON.stringify({ userId: myUserId, sharing: true, sample: true })
+                });
+                const point = result.location || result;
+                showDemoResult(`Location sharing is on${point.latitude ? ` at ${point.latitude}, ${point.longitude}` : ""}.`);
+                showComicPop("LOCATION ON 📍", "#0284c7");
+            } catch (error) {
+                showDemoResult(error.message);
+                showError(error);
+            }
+        }
+
+        async function startTeamDemo() {
+            if (!requireProfile()) return;
+            const member = myConnectedMatches[0];
+            if (!member || !member.matchId) {
+                showDemoResult("Connect with a hacker first. The team uses that match.");
+                return;
+            }
+            try {
+                const team = await api("/api/teams", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        matchId: member.matchId,
+                        projectName: "Comic squad",
+                        creatorUserId: myUserId
+                    })
+                });
+                showDemoResult(`Team ready: ${team.projectName || "Comic squad"} with ${member.name}.`);
+                showComicPop("TEAM UP! 🤝", "#f59e0b", "#111111");
+            } catch (error) {
+                showDemoResult(error.message);
+                showError(error);
+            }
+        }
+
+        async function askMuseDemo() {
+            if (!requireProfile()) return;
+            const member = myConnectedMatches[0];
+            if (!member) {
+                showDemoResult("Connect with a hacker first, then Ask Muse can explain that match.");
+                return;
+            }
+            try {
+                const why = await api("/api/muse/ask", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        userId: myUserId,
+                        candidateUserId: member.id,
+                        question: "Why did we connect?"
+                    })
+                });
+                member.why = why.text;
+                renderSquadGrid();
+                showDemoResult(why.text);
+                showComicPop("MUSE ANSWERED ✨", "#8b5cf6");
+            } catch (error) {
+                showDemoResult(error.message);
+                showError(error);
+            }
+        }
+
+        document.getElementById('check-in-btn').addEventListener('click', checkInDemo);
+        document.getElementById('location-btn').addEventListener('click', shareLocationDemo);
+        document.getElementById('team-btn').addEventListener('click', startTeamDemo);
+        document.getElementById('muse-btn').addEventListener('click', askMuseDemo);
 
         document.getElementById('squad-grid').addEventListener('click', (event) => {
             const ping = event.target.closest('.squad-btn-ping');

@@ -107,6 +107,28 @@ async function seedSamples() {
       `, [sample.id, roleId]);
     }
   }
+
+  const people = await run("SELECT id FROM users");
+  for (const sample of samples) {
+    if (!sample.alreadyLikesNewHackers) {
+      continue;
+    }
+    for (const person of people) {
+      if (person.id === sample.id) {
+        continue;
+      }
+      await run(`
+        INSERT INTO swipes (id, from_user_id, to_user_id, action, created_at)
+        VALUES (?, ?, ?, 'like', ?)
+        ON CONFLICT (from_user_id, to_user_id) DO NOTHING
+      `, [
+        `swipe_${sample.id}_${person.id}`,
+        sample.id,
+        person.id,
+        "2026-01-01T00:00:00.000Z"
+      ]);
+    }
+  }
 }
 
 module.exports = { initDb, query };

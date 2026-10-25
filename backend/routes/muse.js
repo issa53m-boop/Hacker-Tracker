@@ -8,19 +8,20 @@ const router = express.Router();
 
 router.post("/ask", asyncRoute(async (req, res) => {
   const body = req.body || {};
-  const me = getUser(body.userId);
+  const me = await getUser(body.userId);
   if (!me) {
     throw new HttpError(404, "That hacker was not found.");
   }
 
   let them = null;
   if (body.candidateUserId) {
-    them = getUser(body.candidateUserId);
+    them = await getUser(body.candidateUserId);
     if (!them) {
       throw new HttpError(404, "That hacker was not found.");
     }
   } else {
-    them = listCandidates(me.userId)[0];
+    const people = await listCandidates(me.userId);
+    them = people[0];
   }
   if (!them) {
     throw new HttpError(400, "There is nobody left on the match deck.");
