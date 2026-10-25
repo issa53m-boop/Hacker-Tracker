@@ -1,0 +1,1707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hacker Tracker - Spider-Tracer Edition</title>
+    <!-- Import Google Pop-Art & Display Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Luckiest+Guy&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        :root {
+            --bg-tint: #f0f4f8;
+            --surface: #ffffff;
+            --surface-glass: rgba(255, 255, 255, 0.92);
+            --pastel-pink: rgba(244, 114, 182, 0.45);
+            --pastel-purple: rgba(167, 139, 250, 0.45);
+            --pastel-blue: rgba(96, 165, 250, 0.45);
+            --pastel-green: rgba(52, 211, 153, 0.45);
+            --pastel-yellow: rgba(250, 204, 21, 0.45);
+            --accent-purple: #8b5cf6;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #f0f4f9;
+            color: var(--text-main);
+            font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow-x: hidden;
+            cursor: crosshair;
+            transition: background 0.5s ease;
+        }
+
+        /* 1. Setup View Background: Soft Halftone Dot Matrix */
+        body.view-setup-bg {
+            background-color: #f0f4f8;
+        }
+
+        body.view-setup-bg::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            background-image: 
+                radial-gradient(circle, var(--pastel-pink) 7px, transparent 7px),
+                radial-gradient(circle, var(--pastel-purple) 7px, transparent 7px),
+                radial-gradient(circle, var(--pastel-blue) 7px, transparent 7px),
+                radial-gradient(circle, var(--pastel-green) 7px, transparent 7px),
+                radial-gradient(circle, var(--pastel-yellow) 7px, transparent 7px),
+                linear-gradient(135deg, rgba(244, 114, 182, 0.15) 0%, rgba(167, 139, 250, 0.15) 25%, rgba(96, 165, 250, 0.15) 50%, rgba(52, 211, 153, 0.15) 75%, rgba(250, 204, 21, 0.15) 100%),
+                radial-gradient(circle at center, rgba(240, 244, 248, 0) 0%, rgba(240, 244, 248, 0.85) 70%, rgba(240, 244, 248, 1) 100%);
+            background-size: 64px 64px, 64px 64px, 64px 64px, 64px 64px, 64px 64px, 100% 100%, 100% 100%;
+            background-position: 0 0, 32px 0, 0 32px, 32px 32px, 16px 16px, 0 0, 0 0;
+        }
+
+        /* 2. Match/Squad View Background: Pastel Rainbow Holographic Ombre Wash */
+        body.view-match-bg {
+            background: linear-gradient(135deg, 
+                rgba(244, 114, 182, 0.35) 0%, 
+                rgba(167, 139, 250, 0.35) 25%, 
+                rgba(96, 165, 250, 0.35) 50%, 
+                rgba(52, 211, 153, 0.35) 75%, 
+                rgba(250, 204, 21, 0.35) 100%);
+            background-size: 200% 200%;
+            animation: ombreGradient 12s ease infinite;
+        }
+
+        body.view-match-bg::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            background-image: 
+                radial-gradient(circle, rgba(244, 114, 182, 0.25) 6px, transparent 6px),
+                radial-gradient(circle, rgba(167, 139, 250, 0.25) 6px, transparent 6px),
+                radial-gradient(circle, rgba(96, 165, 250, 0.25) 6px, transparent 6px),
+                radial-gradient(circle, rgba(52, 211, 153, 0.25) 6px, transparent 6px),
+                radial-gradient(circle at center, rgba(255, 255, 255, 0.1) 0%, rgba(240, 244, 248, 0.6) 80%);
+            background-size: 64px 64px, 64px 64px, 64px 64px, 64px 64px, 100% 100%;
+            background-position: 0 0, 32px 0, 0 32px, 32px 32px, 0 0;
+            opacity: 0.7;
+        }
+
+        @keyframes ombreGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Role Cursor Particles */
+        .cursor-particle {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            transform: translate(-50%, -50%);
+            animation: particleAnim 0.6s forwards ease-out;
+            user-select: none;
+        }
+
+        @keyframes particleAnim {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.6) rotate(0deg); }
+            100% { opacity: 0; transform: translate(-50%, -50%) scale(1.4) rotate(45deg); }
+        }
+
+        /* Top Navigation Bar */
+        .navbar {
+            width: 100%;
+            height: 68px;
+            background: var(--surface-glass);
+            backdrop-filter: blur(16px);
+            border-bottom: 2px solid rgba(15, 23, 42, 0.08);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            position: fixed;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .nav-brand {
+            font-family: 'Bangers', 'Impact', cursive;
+            font-size: 26px;
+            letter-spacing: 2px;
+            color: var(--text-main);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-shadow: 2px 2px 0px rgba(167, 139, 250, 0.4);
+        }
+
+        .brand-dot {
+            width: 12px;
+            height: 12px;
+            background: #a78bfa;
+            border-radius: 50%;
+            box-shadow: 0 0 12px #a78bfa;
+        }
+
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 18px;
+            font-size: 15px;
+            font-weight: 700;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+            background: rgba(15, 23, 42, 0.04);
+        }
+
+        .tab-btn.active {
+            color: var(--accent-purple);
+            background: rgba(139, 92, 246, 0.12);
+            border: 1px solid rgba(139, 92, 246, 0.25);
+            box-shadow: 0 0 20px rgba(139, 92, 246, 0.15);
+        }
+
+        .nav-badge {
+            background: #8b5cf6;
+            color: #ffffff;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1px solid #0f172a;
+            box-shadow: 1px 1px 0px #0f172a;
+        }
+
+        /* Main Container */
+        .main-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 84px;
+            margin-bottom: 40px;
+            padding: 20px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .view {
+            display: none;
+            width: 100%;
+            justify-content: center;
+        }
+
+        .view.active-view {
+            display: flex;
+        }
+
+        /* Form Card Layout */
+        .card {
+            width: 480px;
+            max-width: 100%;
+            background: var(--surface);
+            border: 2px solid rgba(15, 23, 42, 0.08);
+            border-radius: 28px;
+            padding: 32px 36px;
+            box-shadow: 
+                0 25px 50px -12px rgba(15, 23, 42, 0.1),
+                0 0 40px rgba(167, 139, 250, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 6px;
+            background: linear-gradient(90deg, #f472b6, #a78bfa, #60a5fa, #34d399, #facc15);
+        }
+
+        h2 {
+            font-family: 'Bangers', 'Impact', cursive;
+            font-size: 32px;
+            letter-spacing: 1.5px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: var(--text-main);
+            text-transform: uppercase;
+            text-shadow: 2px 2px 0 rgba(167, 139, 250, 0.3);
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+            width: 100%;
+        }
+
+        label {
+            display: block;
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--accent-purple);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            text-align: left;
+        }
+
+        input[type="text"], textarea {
+            box-sizing: border-box;
+            width: 100%;
+            padding: 12px 16px;
+            background: #f8fafc;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 14px;
+            font-family: inherit;
+            font-weight: 500;
+            line-height: 1.5;
+            text-align: left;
+            transition: all 0.25s ease;
+            display: block;
+            margin: 0;
+            vertical-align: middle;
+            appearance: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="text"] {
+            height: 46px;
+            line-height: normal;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 84px;
+            word-break: break-word;
+            white-space: pre-wrap;
+        }
+
+        input[type="text"]::placeholder, textarea::placeholder {
+            color: #94a3b8;
+            font-weight: 500;
+            opacity: 1;
+            line-height: 1.5;
+        }
+
+        input[type="text"]::placeholder {
+            line-height: normal;
+        }
+
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent-purple);
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.15);
+        }
+
+        .file-upload-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .file-upload-wrapper input[type="file"] {
+            display: none;
+        }
+
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(243, 232, 255, 0.5));
+            border: 1.5px dashed rgba(167, 139, 250, 0.6);
+            border-radius: 12px;
+            color: var(--text-muted);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 2px 8px rgba(167, 139, 250, 0.05);
+        }
+
+        .file-upload-label:hover {
+            background: linear-gradient(135deg, rgba(243, 232, 255, 0.8), rgba(224, 231, 255, 0.8));
+            border-color: var(--accent-purple);
+            color: var(--accent-purple);
+            box-shadow: 0 4px 15px rgba(167, 139, 250, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 6px;
+            width: 100%;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-main);
+            cursor: pointer;
+            margin: 0;
+            padding: 10px 14px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(243, 232, 255, 0.4));
+            border: 1.5px solid rgba(167, 139, 250, 0.3);
+            border-radius: 12px;
+            transition: all 0.25s ease;
+            box-shadow: 0 2px 8px rgba(167, 139, 250, 0.05);
+            width: 100%;
+        }
+
+        .checkbox-label:hover {
+            background: linear-gradient(135deg, rgba(243, 232, 255, 0.8), rgba(224, 231, 255, 0.8));
+            border-color: rgba(167, 139, 250, 0.7);
+            box-shadow: 0 4px 15px rgba(167, 139, 250, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .checkbox-label input {
+            margin-right: 12px;
+            accent-color: var(--accent-purple);
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            font-family: 'Bangers', 'Impact', cursive;
+            font-size: 22px;
+            border-radius: 14px;
+            border: 2px solid #0f172a;
+            cursor: pointer;
+            background: linear-gradient(135deg, #f472b6, #a78bfa, #60a5fa, #34d399);
+            background-size: 300% 300%;
+            color: #ffffff;
+            transition: all 0.2s ease;
+            margin-top: 12px;
+            box-shadow: 4px 4px 0px #0f172a, 0 8px 25px rgba(167, 139, 250, 0.35);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            text-shadow: 2px 2px 0px #0f172a;
+            animation: holoShift 6s ease infinite;
+        }
+
+        @keyframes holoShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .btn:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0px #0f172a, 0 12px 30px rgba(167, 139, 250, 0.5);
+            filter: brightness(1.05);
+        }
+
+        .btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px #0f172a;
+        }
+
+        /* Deck Stack Wrapper */
+        .deck-wrapper {
+            position: relative;
+            width: 480px;
+            height: 550px;
+            max-width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .match-card-stack-bg-2 {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #e0e7ff, #f3e8ff);
+            border: 3px solid #0f172a;
+            border-radius: 32px;
+            transform: rotate(-4.5deg) translate(-10px, 6px);
+            box-shadow: 6px 6px 0px #0f172a;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.9;
+        }
+
+        .match-card-stack-bg-1 {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #fce7f3, #dbeafe);
+            border: 3px solid #0f172a;
+            border-radius: 32px;
+            transform: rotate(3deg) translate(8px, 4px);
+            box-shadow: 6px 6px 0px #0f172a;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0.95;
+        }
+
+        /* Match Card */
+        .match-card {
+            width: 100%;
+            height: 100%;
+            background: #ffffff;
+            border: 3px solid #0f172a;
+            border-radius: 32px;
+            position: relative;
+            overflow: hidden;
+            z-index: 3;
+            box-shadow: 
+                8px 12px 0px #0f172a,
+                0 0 50px rgba(167, 139, 250, 0.3);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease, box-shadow 0.3s ease;
+        }
+
+        .match-image-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #fbcfe8, #e9d5ff, #c7d2fe);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 110px;
+            z-index: 1;
+            transition: transform 0.4s ease;
+        }
+
+        .match-image-bg img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .match-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60%;
+            background: linear-gradient(to top, rgba(15, 23, 42, 0.85) 0%, rgba(15, 23, 42, 0.45) 60%, transparent 100%);
+            z-index: 2;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .match-content {
+            position: relative;
+            z-index: 3;
+            padding: 24px 26px;
+            color: #ffffff;
+            text-align: left;
+            width: 100%;
+        }
+
+        .match-name {
+            font-family: 'Bangers', 'Impact', cursive;
+            font-size: 42px;
+            letter-spacing: 1.5px;
+            color: #ffffff;
+            line-height: 1;
+            margin-bottom: 6px;
+            text-shadow: 3px 3px 0px #0f172a, 0 2px 10px rgba(0,0,0,0.5);
+            text-transform: uppercase;
+        }
+
+        .match-role {
+            font-size: 13px;
+            font-weight: 800;
+            color: #ffffff;
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(255, 255, 255, 0.35);
+            display: inline-block;
+            padding: 4px 14px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 12px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.6);
+        }
+
+        .match-bio-drawer {
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(16px);
+            padding: 0 18px;
+            border-radius: 16px;
+            border: 2px solid rgba(167, 139, 250, 0.8);
+            font-size: 13.5px;
+            color: #f8fafc;
+            line-height: 1.5;
+            text-align: left;
+            width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .match-bio-drawer::-webkit-scrollbar {
+            width: 5px;
+        }
+        .match-bio-drawer::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        .match-bio-drawer::-webkit-scrollbar-thumb {
+            background: var(--accent-purple);
+            border-radius: 10px;
+        }
+
+        .match-card:hover .match-bio-drawer {
+            max-height: 220px;
+            opacity: 1;
+            padding: 14px 18px;
+            margin-bottom: 14px;
+            overflow-y: auto;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        }
+
+        .bio-line {
+            margin-bottom: 6px;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .bio-line:last-child {
+            margin-bottom: 0;
+        }
+
+        .bio-label {
+            color: #a78bfa;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .bio-text {
+            color: #f1f5f9;
+            font-weight: 500;
+        }
+
+        /* Action Buttons */
+        .match-actions {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-top: 8px;
+            width: 100%;
+        }
+
+        .action-btn {
+            flex: 1;
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 2.5px solid #0f172a;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            text-transform: uppercase;
+            font-family: 'Bangers', 'Impact', cursive;
+            font-size: 24px;
+            letter-spacing: 2px;
+            line-height: 1;
+            text-align: center;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn-pass {
+            background: #ffffff;
+            color: #0f172a;
+            box-shadow: 4px 4px 0px #0f172a;
+            text-shadow: 1px 1px 0px rgba(0,0,0,0.1);
+        }
+
+        .btn-pass:hover {
+            background: #f1f5f9;
+            transform: translate(-2px, -2px) rotate(-1.5deg);
+            box-shadow: 6px 6px 0px #0f172a;
+            color: #ef4444;
+            border-color: #0f172a;
+        }
+
+        .btn-pass:active {
+            transform: translate(2px, 2px) rotate(0deg);
+            box-shadow: 1px 1px 0px #0f172a;
+        }
+
+        .btn-connect {
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            color: #ffffff;
+            box-shadow: 4px 4px 0px #0f172a, 0 0 20px rgba(52, 211, 153, 0.4);
+            text-shadow: 2px 2px 0px #0f172a;
+        }
+
+        .btn-connect:hover {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            transform: translate(-2px, -2px) rotate(1.5deg);
+            box-shadow: 6px 6px 0px #0f172a, 0 0 25px rgba(52, 211, 153, 0.6);
+            filter: brightness(1.08);
+        }
+
+        .btn-connect:active {
+            transform: translate(2px, 2px) rotate(0deg);
+            box-shadow: 1px 1px 0px #0f172a;
+        }
+
+        /* DRAMATIC SWIPE & ROLE ANIMATIONS */
+        .anim-pass-flyout {
+            transform: translateX(-160%) rotate(-28deg) scale(0.85) !important;
+            opacity: 0 !important;
+        }
+
+        .anim-connect-architect {
+            animation: connectArchitectAnim 0.55s ease forwards;
+        }
+
+        @keyframes connectArchitectAnim {
+            0% { transform: scale(1) translateY(0); filter: brightness(1); }
+            30% { transform: scale(1.06) translateY(-20px) rotate(-2deg); filter: brightness(1.4) drop-shadow(0 0 35px #0284c7); }
+            70% { transform: scale(1.03) translateY(-10px) rotate(2deg); opacity: 0.9; }
+            100% { transform: translateY(-120%) scale(0.7); opacity: 0; }
+        }
+
+        .anim-connect-interface {
+            animation: connectInterfaceAnim 0.55s cubic-bezier(0.17, 0.89, 0.32, 1.25) forwards;
+        }
+
+        @keyframes connectInterfaceAnim {
+            0% { transform: scale(1); }
+            40% { transform: scale(1.12) rotate(3deg); filter: drop-shadow(0 0 45px #a78bfa) brightness(1.3); }
+            100% { transform: translateY(-120%) scale(0.6) rotate(-8deg); opacity: 0; }
+        }
+
+        .anim-connect-visionary {
+            animation: connectVisionaryAnim 0.55s ease-out forwards;
+        }
+
+        @keyframes connectVisionaryAnim {
+            0% { transform: scale(1); }
+            40% { transform: scale(1.08) translateY(-25px); filter: drop-shadow(0 0 40px #34d399) brightness(1.2); }
+            100% { transform: translateY(-140%) scale(0.5) rotate(12deg); opacity: 0; }
+        }
+
+        .anim-connect-mastermind {
+            animation: connectMastermindAnim 0.55s ease-in-out forwards;
+        }
+
+        @keyframes connectMastermindAnim {
+            0% { transform: scale(1) rotate(0deg); }
+            50% { transform: scale(1.15) rotate(180deg); filter: drop-shadow(0 0 50px #facc15) brightness(1.3); }
+            100% { transform: scale(0) rotate(360deg) translateY(-100%); opacity: 0; }
+        }
+
+        .anim-card-enter {
+            animation: cardDeckEnter 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes cardDeckEnter {
+            0% { transform: translateY(-60px) scale(0.92); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+
+        /* Comic Pop Overlay */
+        .comic-pop-banner {
+            position: fixed;
+            top: 45%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.2) rotate(-10deg);
+            z-index: 10000;
+            font-family: 'Luckiest Guy', 'Bangers', cursive;
+            font-size: 64px;
+            padding: 18px 36px;
+            color: #ffffff;
+            border: 4px solid #0f172a;
+            border-radius: 28px;
+            pointer-events: none;
+            user-select: none;
+            box-shadow: 10px 10px 0px #0f172a, 0 0 60px rgba(0, 0, 0, 0.4);
+            text-shadow: 4px 4px 0px #0f172a;
+            animation: comicPopAnim 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        @keyframes comicPopAnim {
+            0% { transform: translate(-50%, -50%) scale(0.1) rotate(-15deg); opacity: 0; }
+            40% { transform: translate(-50%, -50%) scale(1.15) rotate(5deg); opacity: 1; }
+            70% { transform: translate(-50%, -50%) scale(1) rotate(-3deg); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scale(1.2) rotate(8deg); opacity: 0; }
+        }
+
+        /* REVAMPED "MY MATCHES" HUB STYLING */
+        .matches-hub-container {
+            width: 900px;
+            max-width: 100%;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(16px);
+            border: 3px solid #0f172a;
+            border-radius: 32px;
+            padding: 32px 36px;
+            box-shadow: 10px 10px 0px #0f172a, 0 20px 40px rgba(0, 0, 0, 0.1);
+            position: relative;
+        }
+
+        .matches-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding-bottom: 18px;
+            border-bottom: 2px dashed rgba(15, 23, 42, 0.15);
+        }
+
+        .matches-title-group h2 {
+            margin: 0;
+            line-height: 1;
+        }
+
+        .matches-subtitle {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .matches-toolbar {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+
+        .matches-search-input {
+            height: 44px;
+            border: 2px solid #0f172a;
+            border-radius: 14px;
+            padding: 0 16px;
+            font-size: 14px;
+            box-shadow: 3px 3px 0px #0f172a;
+            background: #ffffff;
+            transition: all 0.2s ease;
+        }
+
+        .matches-search-input:focus {
+            outline: none;
+            box-shadow: 4px 4px 0px #8b5cf6;
+            border-color: #8b5cf6;
+        }
+
+        .role-filter-chips {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .chip-btn {
+            background: #ffffff;
+            border: 2px solid #0f172a;
+            border-radius: 12px;
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: 800;
+            color: #0f172a;
+            cursor: pointer;
+            transition: all 0.18s ease;
+            box-shadow: 2px 2px 0px #0f172a;
+            user-select: none;
+        }
+
+        .chip-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 3px 3px 0px #0f172a;
+        }
+
+        .chip-btn.active-chip {
+            background: #8b5cf6;
+            color: #ffffff;
+            border-color: #0f172a;
+            box-shadow: 3px 3px 0px #0f172a;
+        }
+
+        .squad-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 20px;
+            max-height: 520px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .squad-grid::-webkit-scrollbar {
+            width: 6px;
+        }
+        .squad-grid::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.05);
+            border-radius: 10px;
+        }
+        .squad-grid::-webkit-scrollbar-thumb {
+            background: #8b5cf6;
+            border-radius: 10px;
+        }
+
+        /* Squad Member Hero Card */
+        .squad-card {
+            background: #ffffff;
+            border: 2.5px solid #0f172a;
+            border-radius: 20px;
+            padding: 18px;
+            box-shadow: 5px 5px 0px #0f172a;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.22s ease;
+        }
+
+        .squad-card:hover {
+            transform: translateY(-4px) rotate(-0.5deg);
+            box-shadow: 8px 8px 0px #0f172a;
+        }
+
+        .squad-card-top {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 12px;
+        }
+
+        .squad-avatar-frame {
+            width: 58px;
+            height: 58px;
+            border-radius: 16px;
+            border: 2px solid #0f172a;
+            background: linear-gradient(135deg, #fbcfe8, #c7d2fe);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            overflow: hidden;
+            flex-shrink: 0;
+            box-shadow: 2px 2px 0px #0f172a;
+        }
+
+        .squad-avatar-frame img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .squad-hero-name {
+            font-family: 'Bangers', cursive;
+            font-size: 24px;
+            color: #0f172a;
+            line-height: 1.1;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        /* Comic Pop Role Badges */
+        .role-tag {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 10px;
+            border-radius: 10px;
+            border: 1.5px solid #0f172a;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 1.5px 1.5px 0px #0f172a;
+            margin-top: 3px;
+        }
+
+        .tag-architect { background: #e0f2fe; color: #0284c7; }
+        .tag-interface { background: #f3e8ff; color: #7c3aed; }
+        .tag-visionary { background: #d1fae5; color: #059669; }
+        .tag-mastermind { background: #fef3c7; color: #d97706; }
+
+        .squad-details {
+            background: #f8fafc;
+            border: 1.5px solid rgba(15, 23, 42, 0.1);
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 12.5px;
+            color: #334155;
+            margin-bottom: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .squad-detail-row {
+            line-height: 1.35;
+        }
+
+        .squad-detail-label {
+            font-weight: 800;
+            color: #8b5cf6;
+            text-transform: uppercase;
+            font-size: 10.5px;
+            letter-spacing: 0.5px;
+        }
+
+        .squad-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .squad-btn-ping {
+            flex: 1;
+            background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+            color: #ffffff;
+            border: 2px solid #0f172a;
+            border-radius: 10px;
+            padding: 8px;
+            font-family: 'Bangers', cursive;
+            font-size: 17px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px #0f172a;
+            transition: all 0.15s ease;
+        }
+
+        .squad-btn-ping:hover {
+            transform: translate(-1px, -1px);
+            box-shadow: 3px 3px 0px #0f172a;
+            filter: brightness(1.1);
+        }
+
+        .squad-btn-remove {
+            background: #ffffff;
+            color: #ef4444;
+            border: 2px solid #0f172a;
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-family: 'Bangers', cursive;
+            font-size: 17px;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px #0f172a;
+            transition: all 0.15s ease;
+        }
+
+        .squad-btn-remove:hover {
+            background: #fef2f2;
+            transform: translate(-1px, -1px);
+            box-shadow: 3px 3px 0px #0f172a;
+        }
+
+        /* Adorable Empty State */
+        .empty-squad-box {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(243, 232, 255, 0.6));
+            border: 3px dashed #a78bfa;
+            border-radius: 24px;
+            padding: 42px 24px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            grid-column: 1 / -1;
+            box-shadow: inset 0 0 30px rgba(167, 139, 250, 0.1);
+        }
+
+        .empty-squad-icon {
+            font-size: 60px;
+            margin-bottom: 12px;
+            animation: bounceIcon 2s infinite ease-in-out;
+        }
+
+        @keyframes bounceIcon {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .empty-squad-title {
+            font-family: 'Bangers', cursive;
+            font-size: 32px;
+            color: #0f172a;
+            letter-spacing: 1px;
+            margin-bottom: 6px;
+            text-shadow: 1px 1px 0px rgba(167, 139, 250, 0.3);
+        }
+
+        .empty-squad-desc {
+            font-size: 14px;
+            color: var(--text-muted);
+            font-weight: 600;
+            max-width: 320px;
+            margin-bottom: 18px;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body class="view-setup-bg">
+
+    <!-- Top Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <div class="brand-dot"></div>
+            Hacker Tracker
+        </div>
+        <div class="nav-tabs">
+            <button class="tab-btn active" id="nav-setup" onclick="switchView('setup')">Setup Profile</button>
+            <button class="tab-btn" id="nav-match" onclick="switchView('match')">Match Deck</button>
+            <button class="tab-btn" id="nav-matches" onclick="switchView('matches')">
+                My Matches
+                <span class="nav-badge" id="squad-count-badge">0</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="main-container">
+        
+        <!-- View 1: Setup Profile -->
+        <div id="view-setup" class="view active-view">
+            <div class="card">
+                <h2>Build Your Profile</h2>
+                
+                <div class="form-group">
+                    <label for="name">Hacker Name / Alias</label>
+                    <input type="text" id="name" placeholder="e.g. Miles Morales">
+                </div>
+
+                <div class="form-group">
+                    <label>Profile Picture / Avatar</label>
+                    <div class="file-upload-wrapper">
+                        <label for="avatar-file" class="file-upload-label" id="file-label">
+                            <span>🖼️ Choose Hero Avatar</span>
+                        </label>
+                        <input type="file" id="avatar-file" accept="image/*">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Select Your Preferred Role(s)</label>
+                    <div class="checkbox-group">
+                        <label class="checkbox-label"><input type="checkbox" name="role" value="The Architect"> The Architect (Backend)</label>
+                        <label class="checkbox-label"><input type="checkbox" name="role" value="The Interface"> The Interface (Frontend)</label>
+                        <label class="checkbox-label"><input type="checkbox" name="role" value="The Visionary"> The Visionary (Design / UI)</label>
+                        <label class="checkbox-label"><input type="checkbox" name="role" value="The Mastermind"> The Mastermind (Pitch / PM)</label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="building">What I Want to Build</label>
+                    <textarea id="building" rows="2" placeholder="e.g. AI matchmaking app with comic book animations"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="pitches">Pitches & Tracks of Interest</label>
+                    <textarea id="pitches" rows="2" placeholder="e.g. Meta Challenge, Jester's Court track"></textarea>
+                </div>
+
+                <button class="btn" id="find-squad-btn" onclick="launchApp()">Find My Squad ⚡</button>
+            </div>
+        </div>
+
+        <!-- View 2: Match Deck -->
+        <div id="view-match" class="view">
+            <div class="deck-wrapper">
+                <div class="match-card-stack-bg-2"></div>
+                <div class="match-card-stack-bg-1"></div>
+
+                <div class="match-card" id="active-match-card">
+                    <div class="match-image-bg" id="match-avatar">🕷️</div>
+                    <div class="match-overlay"></div>
+                    <div class="match-content">
+                        <div class="match-name" id="match-name">Gwen Stacy</div>
+                        <div class="match-role" id="match-role">The Interface (Frontend)</div>
+                        
+                        <div class="match-bio-drawer" id="match-bio">
+                            <div class="bio-line">
+                                <span class="bio-label">Building:</span>
+                                <span class="bio-text">Cross-dimensional comic shader engine.</span>
+                            </div>
+                            <div class="bio-line">
+                                <span class="bio-label">Track:</span>
+                                <span class="bio-text">Meta WebXR Challenge</span>
+                            </div>
+                        </div>
+
+                        <div class="match-actions">
+                            <button class="action-btn btn-pass" onclick="triggerPassAnimation()">Maybe Later</button>
+                            <button class="action-btn btn-connect" onclick="triggerConnectAnimation()">Connect ⚡</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View 3: My Matches Hub -->
+        <div id="view-matches" class="view">
+            <div class="matches-hub-container">
+                <div class="matches-header">
+                    <div class="matches-title-group">
+                        <h2>My Connected Squad</h2>
+                        <div class="matches-subtitle">View and message hackers ready to build together</div>
+                    </div>
+                </div>
+
+                <div class="matches-toolbar">
+                    <input type="text" id="squad-search" class="matches-search-input" placeholder="🔍 Search squad members by name or project..." oninput="filterSquadGrid()">
+                    <div class="role-filter-chips">
+                        <button class="chip-btn active-chip" data-filter="ALL" onclick="setRoleFilter('ALL', this)">All Roles</button>
+                        <button class="chip-btn" data-filter="Architect" onclick="setRoleFilter('Architect', this)">Architect</button>
+                        <button class="chip-btn" data-filter="Interface" onclick="setRoleFilter('Interface', this)">Interface</button>
+                        <button class="chip-btn" data-filter="Visionary" onclick="setRoleFilter('Visionary', this)">Visionary</button>
+                        <button class="chip-btn" data-filter="Mastermind" onclick="setRoleFilter('Mastermind', this)">Mastermind</button>
+                    </div>
+                </div>
+
+                <div class="squad-grid" id="squad-grid">
+                    <!-- Squad cards injected dynamically -->
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Application Engine -->
+    <script>
+        let audioCtx = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        const AudioSynth = {
+            playKickSFX() {
+                try {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(140, now);
+                    osc.frequency.exponentialRampToValueAtTime(32, now + 0.18);
+                    gain.gain.setValueAtTime(1.0, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.22);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.22);
+
+                    const bufferSize = ctx.sampleRate * 0.12;
+                    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+                    const output = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) {
+                        output[i] = Math.random() * 2 - 1;
+                    }
+                    const noise = ctx.createBufferSource();
+                    noise.buffer = buffer;
+                    const noiseGain = ctx.createGain();
+                    noiseGain.gain.setValueAtTime(0.6, now);
+                    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+                    noise.connect(noiseGain);
+                    noiseGain.connect(ctx.destination);
+                    noise.start(now);
+                } catch(e) { console.error(e); }
+            },
+
+            playArchitectSFX() {
+                try {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    [220, 330, 440, 660, 880].forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'square';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.04);
+                        gain.gain.setValueAtTime(0.15, now + idx * 0.04);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.04 + 0.1);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(now + idx * 0.04);
+                        osc.stop(now + idx * 0.04 + 0.1);
+                    });
+                } catch(e) { console.error(e); }
+            },
+
+            playInterfaceSFX() {
+                try {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(260, now);
+                    osc.frequency.exponentialRampToValueAtTime(1200, now + 0.25);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.28);
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.28);
+                } catch(e) { console.error(e); }
+            },
+
+            playVisionarySFX() {
+                try {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    const scale = [523.25, 659.25, 783.99, 1046.50, 1318.51];
+                    scale.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+                        gain.gain.setValueAtTime(0.2, now + idx * 0.05);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.25);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(now + idx * 0.05);
+                        osc.stop(now + idx * 0.05 + 0.25);
+                    });
+                } catch(e) { console.error(e); }
+            },
+
+            playMastermindSFX() {
+                try {
+                    const ctx = getAudioContext();
+                    const now = ctx.currentTime;
+                    [392.00, 493.88, 587.33, 783.99].forEach(freq => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now);
+                        gain.gain.setValueAtTime(0.25, now);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.start(now);
+                        osc.stop(now + 0.45);
+                    });
+                } catch(e) { console.error(e); }
+            }
+        };
+
+        const candidates = [
+            { id: 'c1', name: "Gwen Stacy", role: "The Interface (Frontend)", bio: "Building: Cross-dimensional comic shader engine.\nTrack: Meta WebXR Challenge", avatar: "🕷️" },
+            { id: 'c2', name: "Miguel O'Hara", role: "The Architect (Backend)", bio: "Building: Real-time multiverse synchronization mesh.\nTrack: Infrastructure & Security", avatar: "🛡️" },
+            { id: 'c3', name: "Peni Parker", role: "The Visionary (Design / UI)", bio: "Building: Mech-suit HUD holographic interface.\nTrack: AI & Robotics Track", avatar: "🤖" },
+            { id: 'c4', name: "Hobie Brown", role: "The Mastermind (Pitch / PM)", bio: "Building: Decentralized anti-establishment hackathon tracker.\nTrack: Open Source Social Good", avatar: "🎸" }
+        ];
+
+        let currentCandidateIndex = 0;
+        let uploadedAvatarUrl = null;
+        let myConnectedMatches = [];
+        let isAnimating = false;
+        let activeRoles = [];
+        let selectedRoleFilter = 'ALL';
+
+        document.getElementById('avatar-file').addEventListener('change', function(e) {
+            const file = e.target.files && e.target.files[0];
+            if (file) {
+                const label = document.getElementById('file-label');
+                label.innerHTML = `<span>✅ ${file.name.substring(0, 15)}...</span>`;
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    uploadedAvatarUrl = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function updateMatchCard() {
+            if (!candidates || candidates.length === 0) return;
+            const c = candidates[currentCandidateIndex];
+            const avatarBox = document.getElementById('match-avatar');
+            
+            if (c.avatar && c.avatar.startsWith('data:')) {
+                avatarBox.innerHTML = `<img src="${c.avatar}" alt="${c.name}">`;
+            } else {
+                avatarBox.innerHTML = c.avatar || '🕷️';
+            }
+
+            document.getElementById('match-name').innerText = c.name;
+            document.getElementById('match-role').innerText = c.role;
+
+            const bioParts = c.bio ? c.bio.split('\n') : ['Building: Hackathon App', 'Track: General Track'];
+            const buildText = bioParts[0] ? bioParts[0].replace(/^Building:\s*/i, '') : 'Custom Project';
+            const trackText = bioParts[1] ? bioParts[1].replace(/^Track:\s*/i, '') : 'General Track';
+
+            document.getElementById('match-bio').innerHTML = `
+                <div class="bio-line">
+                    <span class="bio-label">Building:</span>
+                    <span class="bio-text">${buildText}</span>
+                </div>
+                <div class="bio-line">
+                    <span class="bio-label">Track:</span>
+                    <span class="bio-text">${trackText}</span>
+                </div>
+            `;
+        }
+
+        function showComicPop(text, bgColor, textColor = "#ffffff") {
+            const pop = document.createElement('div');
+            pop.className = 'comic-pop-banner';
+            pop.innerText = text;
+            pop.style.background = bgColor;
+            pop.style.color = textColor;
+            document.body.appendChild(pop);
+
+            setTimeout(() => {
+                pop.remove();
+            }, 650);
+        }
+
+        function triggerPassAnimation() {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            AudioSynth.playKickSFX();
+            showComicPop("KICK! 💥", "#ef4444");
+
+            const card = document.getElementById('active-match-card');
+            card.classList.add('anim-pass-flyout');
+
+            setTimeout(() => {
+                nextCandidate();
+                card.className = "match-card anim-card-enter";
+                setTimeout(() => {
+                    card.classList.remove('anim-card-enter');
+                    isAnimating = false;
+                }, 450);
+            }, 500);
+        }
+
+        function triggerConnectAnimation() {
+            if (isAnimating) return;
+            isAnimating = true;
+
+            const current = candidates[currentCandidateIndex];
+            const role = current.role;
+            const card = document.getElementById('active-match-card');
+
+            if (!myConnectedMatches.some(m => m.id === current.id || m.name === current.name)) {
+                myConnectedMatches.push(current);
+                renderSquadGrid();
+                updateBadgeCounter();
+            }
+
+            if (role.includes("Architect")) {
+                AudioSynth.playArchitectSFX();
+                showComicPop("SYNCHRONIZED! 💻", "#0284c7");
+                card.classList.add('anim-connect-architect');
+            } else if (role.includes("Interface")) {
+                AudioSynth.playInterfaceSFX();
+                showComicPop("SHAZAM! ⚡", "#8b5cf6");
+                card.classList.add('anim-connect-interface');
+            } else if (role.includes("Visionary")) {
+                AudioSynth.playVisionarySFX();
+                showComicPop("VISION! ✨", "#10b981");
+                card.classList.add('anim-connect-visionary');
+            } else {
+                AudioSynth.playMastermindSFX();
+                showComicPop("JACKPOT! 👑", "#f59e0b");
+                card.classList.add('anim-connect-mastermind');
+            }
+
+            setTimeout(() => {
+                nextCandidate();
+                card.className = "match-card anim-card-enter";
+                setTimeout(() => {
+                    card.classList.remove('anim-card-enter');
+                    isAnimating = false;
+                }, 450);
+            }, 550);
+        }
+
+        function nextCandidate() {
+            currentCandidateIndex = (currentCandidateIndex + 1) % candidates.length;
+            updateMatchCard();
+        }
+
+        function updateBadgeCounter() {
+            document.getElementById('squad-count-badge').innerText = myConnectedMatches.length;
+        }
+
+        function getRoleTagClass(role) {
+            if (role.includes('Architect')) return 'tag-architect';
+            if (role.includes('Interface')) return 'tag-interface';
+            if (role.includes('Visionary')) return 'tag-visionary';
+            return 'tag-mastermind';
+        }
+
+        function renderSquadGrid() {
+            const gridEl = document.getElementById('squad-grid');
+            const searchVal = document.getElementById('squad-search').value.toLowerCase().trim();
+
+            const filtered = myConnectedMatches.filter(member => {
+                const matchesRole = selectedRoleFilter === 'ALL' || member.role.includes(selectedRoleFilter);
+                const matchesSearch = !searchVal || 
+                    member.name.toLowerCase().includes(searchVal) || 
+                    member.role.toLowerCase().includes(searchVal) || 
+                    (member.bio && member.bio.toLowerCase().includes(searchVal));
+                return matchesRole && matchesSearch;
+            });
+
+            if (myConnectedMatches.length === 0) {
+                gridEl.innerHTML = `
+                    <div class="empty-squad-box">
+                        <div class="empty-squad-icon">🕸️</div>
+                        <div class="empty-squad-title">NO SQUAD MEMBERS YET!</div>
+                        <div class="empty-squad-desc">Head over to the Match Deck and SHAZAM! ⚡ Connect with hackers to assemble your squad.</div>
+                        <button class="btn" style="width: auto; padding: 10px 24px; font-size: 18px;" onclick="switchView('match')">Go To Match Deck ⚡</button>
+                    </div>
+                `;
+                return;
+            }
+
+            if (filtered.length === 0) {
+                gridEl.innerHTML = `
+                    <div class="empty-squad-box" style="padding: 28px 18px;">
+                        <div class="empty-squad-icon" style="font-size: 40px;">🔍</div>
+                        <div class="empty-squad-title" style="font-size: 24px;">NO MATCHING HEROES</div>
+                        <div class="empty-squad-desc">Try clearing your role filters or search terms to see your full squad.</div>
+                    </div>
+                `;
+                return;
+            }
+
+            gridEl.innerHTML = filtered.map(member => {
+                const bioParts = member.bio ? member.bio.split('\n') : ['Building: Hackathon App', 'Track: General Track'];
+                const buildText = bioParts[0] ? bioParts[0].replace(/^Building:\s*/i, '') : 'Custom Project';
+                const trackText = bioParts[1] ? bioParts[1].replace(/^Track:\s*/i, '') : 'General Track';
+                const tagClass = getRoleTagClass(member.role);
+
+                const avatarHTML = member.avatar && member.avatar.startsWith('data:') 
+                    ? `<img src="${member.avatar}" alt="${member.name}">` 
+                    : `<span>${member.avatar || '🕷️'}</span>`;
+
+                return `
+                    <div class="squad-card">
+                        <div>
+                            <div class="squad-card-top">
+                                <div class="squad-avatar-frame">${avatarHTML}</div>
+                                <div>
+                                    <div class="squad-hero-name">${member.name}</div>
+                                    <div class="role-tag ${tagClass}">${member.role}</div>
+                                </div>
+                            </div>
+                            <div class="squad-details">
+                                <div class="squad-detail-row">
+                                    <span class="squad-detail-label">Building: </span>${buildText}
+                                </div>
+                                <div class="squad-detail-row">
+                                    <span class="squad-detail-label">Track: </span>${trackText}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="squad-actions">
+                            <button class="squad-btn-ping" onclick="pingSquadMember('${member.name}')">Discord / Ping ⚡</button>
+                            <button class="squad-btn-remove" onclick="removeSquadMember('${member.id || member.name}')">✕</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function setRoleFilter(roleKey, btnEl) {
+            selectedRoleFilter = roleKey;
+            document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active-chip'));
+            btnEl.classList.add('active-chip');
+            renderSquadGrid();
+        }
+
+        function filterSquadGrid() {
+            renderSquadGrid();
+        }
+
+        function pingSquadMember(heroName) {
+            AudioSynth.playInterfaceSFX();
+            showComicPop(`PING SENT TO ${heroName.toUpperCase()}! 📲`, "#8b5cf6");
+        }
+
+        function removeSquadMember(identifier) {
+            AudioSynth.playKickSFX();
+            myConnectedMatches = myConnectedMatches.filter(m => (m.id || m.name) !== identifier);
+            renderSquadGrid();
+            updateBadgeCounter();
+            showComicPop("REMOVED FROM SQUAD! 💨", "#ef4444");
+        }
+
+        function switchView(viewName) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active-view'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+
+            const bodyEl = document.body;
+            bodyEl.classList.remove('view-setup-bg', 'view-match-bg');
+
+            if (viewName === 'setup') {
+                document.getElementById('view-setup').classList.add('active-view');
+                document.getElementById('nav-setup').classList.add('active');
+                bodyEl.classList.add('view-setup-bg');
+            } else if (viewName === 'match') {
+                document.getElementById('view-match').classList.add('active-view');
+                document.getElementById('nav-match').classList.add('active');
+                bodyEl.classList.add('view-match-bg');
+            } else if (viewName === 'matches') {
+                document.getElementById('view-matches').classList.add('active-view');
+                document.getElementById('nav-matches').classList.add('active');
+                bodyEl.classList.add('view-match-bg');
+                renderSquadGrid();
+            }
+        }
+
+        function launchApp() {
+            const nameField = document.getElementById('name');
+            const nameVal = nameField ? nameField.value.trim() : '';
+
+            if (!nameVal) {
+                nameField.style.borderColor = '#ef4444';
+                nameField.style.boxShadow = '0 0 0 4px rgba(239, 68, 68, 0.25)';
+                nameField.focus();
+                return;
+            }
+
+            nameField.style.borderColor = '#cbd5e1';
+            nameField.style.boxShadow = 'none';
+
+            const buildingVal = document.getElementById('building').value.trim() || 'Custom Hackathon App';
+            const pitchesVal = document.getElementById('pitches').value.trim() || 'Open Challenge Track';
+            const selectedRoleBoxes = Array.from(document.querySelectorAll('input[name="role"]:checked')).map(cb => cb.value);
+            const roleVal = selectedRoleBoxes.length > 0 ? selectedRoleBoxes.join(' & ') : "The Visionary (Design / UI)";
+
+            const userProfile = {
+                id: 'user_profile',
+                name: nameVal,
+                role: roleVal,
+                bio: `Building: ${buildingVal}\nTrack: ${pitchesVal}`,
+                avatar: uploadedAvatarUrl || '🦸‍♂️'
+            };
+
+            const existingUserIdx = candidates.findIndex(c => c.id === 'user_profile');
+            if (existingUserIdx !== -1) {
+                candidates.splice(existingUserIdx, 1);
+            }
+
+            candidates.unshift(userProfile);
+            currentCandidateIndex = 0;
+
+            const activeCard = document.getElementById('active-match-card');
+            activeCard.className = 'match-card';
+            isAnimating = false;
+
+            switchView('match');
+            updateMatchCard();
+        }
+
+        const roleParticles = {
+            "The Architect": { symbol: "💨", color: "#0284c7" },
+            "The Interface": { symbol: "⚡", color: "#a78bfa" },
+            "The Visionary": { symbol: "✨", color: "#34d399" },
+            "The Mastermind": { symbol: "🌀", color: "#facc15" }
+        };
+
+        document.querySelectorAll('input[name="role"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                activeRoles = Array.from(document.querySelectorAll('input[name="role"]:checked'))
+                                   .map(cb => cb.value);
+            });
+        });
+
+        let lastParticleTime = 0;
+        window.addEventListener('mousemove', (e) => {
+            const now = Date.now();
+            if (now - lastParticleTime > 65) {
+                lastParticleTime = now;
+                
+                if (activeRoles.length > 0) {
+                    activeRoles.forEach(roleName => {
+                        const particleInfo = roleParticles[roleName] || { symbol: "✨", color: "#a78bfa" };
+                        
+                        const particle = document.createElement('div');
+                        particle.className = 'cursor-particle';
+                        particle.innerText = particleInfo.symbol;
+                        particle.style.color = particleInfo.color;
+                        particle.style.fontSize = "16px";
+                        
+                        const offsetX = (Math.random() - 0.5) * 22;
+                        const offsetY = (Math.random() - 0.5) * 22;
+                        particle.style.left = `${e.clientX + offsetX}px`;
+                        particle.style.top = `${e.clientY + offsetY}px`;
+                        
+                        document.body.appendChild(particle);
+
+                        setTimeout(() => {
+                            particle.remove();
+                        }, 600);
+                    });
+                }
+            }
+        });
+
+        window.onload = function() {
+            updateMatchCard();
+            renderSquadGrid();
+            updateBadgeCounter();
+        };
+    </script>
+</body>
+</html>
