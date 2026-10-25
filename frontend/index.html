@@ -1340,13 +1340,15 @@
             }
         };
 
-        const candidates = [
-            { id: 'c1', name: "Gwen Stacy", role: "The Interface (Frontend)", bio: "Building: Cross-dimensional comic shader engine.\nTrack: Meta WebXR Challenge", avatar: "🕷️" },
-            { id: 'c2', name: "Miguel O'Hara", role: "The Architect (Backend)", bio: "Building: Real-time multiverse synchronization mesh.\nTrack: Infrastructure & Security", avatar: "🛡️" },
-            { id: 'c3', name: "Peni Parker", role: "The Visionary (Design / UI)", bio: "Building: Mech-suit HUD holographic interface.\nTrack: AI & Robotics Track", avatar: "🤖" },
-            { id: 'c4', name: "Hobie Brown", role: "The Mastermind (Pitch / PM)", bio: "Building: Decentralized anti-establishment hackathon tracker.\nTrack: Open Source Social Good", avatar: "🎸" }
-        ];
+        const roleIds = {
+            "The Architect": "architect",
+            "The Interface": "interface",
+            "The Visionary": "visionary",
+            "The Mastermind": "mastermind"
+        };
 
+        let candidates = [];
+        let myUserId = localStorage.getItem("hackerTrackerUserId") || "";
         let currentCandidateIndex = 0;
         let uploadedAvatarUrl = null;
         let myConnectedMatches = [];
@@ -1367,13 +1369,72 @@
             }
         });
 
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;");
+        }
+
+        function personToCard(person, matchId) {
+            const role = person.roles && person.roles.length
+                ? person.roles.map((role) => `${role.name} (${role.track})`).join(" & ")
+                : "The Visionary (Design / UI)";
+            const tracks = Array.isArray(person.tracks) ? person.tracks.join(", ") : (person.tracks || "Open Challenge Track");
+            return {
+                id: person.userId,
+                matchId: matchId || "",
+                name: person.displayName,
+                role,
+                bio: `Building: ${person.projectIdea || "Custom Hackathon App"}\nTrack: ${tracks || "Open Challenge Track"}`,
+                avatar: "🕷️"
+            };
+        }
+
+        async function api(path, options) {
+            const method = options && options.method ? options.method : "GET";
+            const body = options && options.body ? options.body : undefined;
+            let response;
+            try {
+                response = await fetch(path, {
+                    method,
+                    headers: body ? { "Content-Type": "application/json" } : {},
+                    body
+                });
+            } catch (error) {
+                throw new Error("The server is not running.");
+            }
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.error || "The server could not finish that.");
+            }
+            return data;
+        }
+
+        function showError(error) {
+            showComicPop(error.message || "Something went wrong.", "#ef4444", "#ffffff", 1800);
+        }
+
         function updateMatchCard() {
-            if (!candidates || candidates.length === 0) return;
-            const c = candidates[currentCandidateIndex];
             const avatarBox = document.getElementById('match-avatar');
-            
+            if (!candidates || candidates.length === 0) {
+                avatarBox.innerHTML = "🕸️";
+                document.getElementById('match-name').innerText = myUserId ? "No hackers left" : "Set up your profile";
+                document.getElementById('match-role').innerText = myUserId ? "Your deck is clear" : "Find My Squad first";
+                document.getElementById('match-bio').innerHTML = `
+                    <div class="bio-line">
+                        <span class="bio-label">Next:</span>
+                        <span class="bio-text">${myUserId ? "Open My Matches to see who connected back." : "Save your profile, then the real deck loads here."}</span>
+                    </div>
+                `;
+                return;
+            }
+            const c = candidates[currentCandidateIndex] || candidates[0];
+            currentCandidateIndex = candidates.indexOf(c);
+
             if (c.avatar && c.avatar.startsWith('data:')) {
-                avatarBox.innerHTML = `<img src="${c.avatar}" alt="${c.name}">`;
+                avatarBox.innerHTML = `<img src="${c.avatar}" alt="${escapeHtml(c.name)}">`;
             } else {
                 avatarBox.innerHTML = c.avatar || '🕷️';
             }
@@ -1388,16 +1449,16 @@
             document.getElementById('match-bio').innerHTML = `
                 <div class="bio-line">
                     <span class="bio-label">Building:</span>
-                    <span class="bio-text">${buildText}</span>
+                    <span class="bio-text">${escapeHtml(buildText)}</span>
                 </div>
                 <div class="bio-line">
                     <span class="bio-label">Track:</span>
-                    <span class="bio-text">${trackText}</span>
+                    <span class="bio-text">${escapeHtml(trackText)}</span>
                 </div>
             `;
         }
 
-        function showComicPop(text, bgColor, textColor = "#ffffff") {
+        function showComicPop(text, bgColor, textColor = "#ffffff", duration = 650) {
             const pop = document.createElement('div');
             pop.className = 'comic-pop-banner';
             pop.innerText = text;
@@ -1407,12 +1468,51 @@
 
             setTimeout(() => {
                 pop.remove();
-            }, 650);
+            }, duration);
         }
 
-        function triggerPassAnimation() {
-            if (isAnimating) return;
+        function finishCardAnimation(card) {
+            card.className = "match-card anim-card-enter";
+            setTimeout(() => {
+                card.classList.remove('anim-card-enter');
+                isAnimating = false;
+            }, 450);
+        }
+
+        function dropCurrentCandidate() {
+            if (!candidates.length) {
+                updateMatchCard();
+                return;
+            }
+            candidates.splice(currentCandidateIndex, 1);
+            if (currentCandidateIndex >= candidates.length) {
+                currentCandidateIndex = 0;
+            }
+            updateMatchCard();
+        }
+
+        async function triggerPassAnimation() {
+            if (isAnimating || !candidates.length) return;
+            if (!myUserId) {
+                showComicPop("Set up your profile first.", "#ef4444", "#ffffff", 1600);
+                return;
+            }
             isAnimating = true;
+            const current = candidates[currentCandidateIndex];
+            try {
+                await api("/api/swipes", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        fromUserId: myUserId,
+                        toUserId: current.id,
+                        action: "maybe-later"
+                    })
+                });
+            } catch (error) {
+                isAnimating = false;
+                showError(error);
+                return;
+            }
 
             AudioSynth.playKickSFX();
             showComicPop("KICK! 💥", "#ef4444");
@@ -1421,30 +1521,47 @@
             card.classList.add('anim-pass-flyout');
 
             setTimeout(() => {
-                nextCandidate();
-                card.className = "match-card anim-card-enter";
-                setTimeout(() => {
-                    card.classList.remove('anim-card-enter');
-                    isAnimating = false;
-                }, 450);
+                dropCurrentCandidate();
+                finishCardAnimation(card);
             }, 500);
         }
 
-        function triggerConnectAnimation() {
-            if (isAnimating) return;
+        async function triggerConnectAnimation() {
+            if (isAnimating || !candidates.length) return;
+            if (!myUserId) {
+                showComicPop("Set up your profile first.", "#ef4444", "#ffffff", 1600);
+                return;
+            }
             isAnimating = true;
-
             const current = candidates[currentCandidateIndex];
-            const role = current.role;
             const card = document.getElementById('active-match-card');
+            let matched = false;
 
-            if (!myConnectedMatches.some(m => m.id === current.id || m.name === current.name)) {
-                myConnectedMatches.push(current);
-                renderSquadGrid();
-                updateBadgeCounter();
+            try {
+                const result = await api("/api/swipes", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        fromUserId: myUserId,
+                        toUserId: current.id,
+                        action: "connect"
+                    })
+                });
+                matched = Boolean(result.match);
+                if (matched) {
+                    await loadSquad();
+                }
+            } catch (error) {
+                isAnimating = false;
+                showError(error);
+                return;
             }
 
-            if (role.includes("Architect")) {
+            const role = current.role;
+            if (!matched) {
+                AudioSynth.playInterfaceSFX();
+                showComicPop("SENT! ⚡", "#8b5cf6");
+                card.classList.add('anim-connect-interface');
+            } else if (role.includes("Architect")) {
                 AudioSynth.playArchitectSFX();
                 showComicPop("SYNCHRONIZED! 💻", "#0284c7");
                 card.classList.add('anim-connect-architect');
@@ -1463,18 +1580,9 @@
             }
 
             setTimeout(() => {
-                nextCandidate();
-                card.className = "match-card anim-card-enter";
-                setTimeout(() => {
-                    card.classList.remove('anim-card-enter');
-                    isAnimating = false;
-                }, 450);
+                dropCurrentCandidate();
+                finishCardAnimation(card);
             }, 550);
-        }
-
-        function nextCandidate() {
-            currentCandidateIndex = (currentCandidateIndex + 1) % candidates.length;
-            updateMatchCard();
         }
 
         function updateBadgeCounter() {
@@ -1531,8 +1639,8 @@
                 const tagClass = getRoleTagClass(member.role);
 
                 const avatarHTML = member.avatar && member.avatar.startsWith('data:') 
-                    ? `<img src="${member.avatar}" alt="${member.name}">` 
-                    : `<span>${member.avatar || '🕷️'}</span>`;
+                    ? `<img src="${member.avatar}" alt="${escapeHtml(member.name)}">` 
+                    : `<span>${escapeHtml(member.avatar || '🕷️')}</span>`;
 
                 return `
                     <div class="squad-card">
@@ -1540,22 +1648,22 @@
                             <div class="squad-card-top">
                                 <div class="squad-avatar-frame">${avatarHTML}</div>
                                 <div>
-                                    <div class="squad-hero-name">${member.name}</div>
-                                    <div class="role-tag ${tagClass}">${member.role}</div>
+                                    <div class="squad-hero-name">${escapeHtml(member.name)}</div>
+                                    <div class="role-tag ${tagClass}">${escapeHtml(member.role)}</div>
                                 </div>
                             </div>
                             <div class="squad-details">
                                 <div class="squad-detail-row">
-                                    <span class="squad-detail-label">Building: </span>${buildText}
+                                    <span class="squad-detail-label">Building: </span>${escapeHtml(buildText)}
                                 </div>
                                 <div class="squad-detail-row">
-                                    <span class="squad-detail-label">Track: </span>${trackText}
+                                    <span class="squad-detail-label">Track: </span>${escapeHtml(trackText)}
                                 </div>
                             </div>
                         </div>
                         <div class="squad-actions">
-                            <button class="squad-btn-ping" onclick="pingSquadMember('${member.name}')">Discord / Ping ⚡</button>
-                            <button class="squad-btn-remove" onclick="removeSquadMember('${member.id || member.name}')">✕</button>
+                            <button class="squad-btn-ping" data-match-id="${escapeHtml(member.matchId)}" data-name="${escapeHtml(member.name)}">Discord / Ping ⚡</button>
+                            <button class="squad-btn-remove" data-match-id="${escapeHtml(member.matchId)}">✕</button>
                         </div>
                     </div>
                 `;
@@ -1573,14 +1681,40 @@
             renderSquadGrid();
         }
 
-        function pingSquadMember(heroName) {
+        async function pingSquadMember(matchId, heroName) {
+            if (!myUserId || !matchId) {
+                showComicPop("Connect first, then ping.", "#ef4444", "#ffffff", 1600);
+                return;
+            }
+            try {
+                await api("/api/messages", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        matchId,
+                        fromUserId: myUserId,
+                        text: `Ping from the squad. Let's build, ${heroName}.`
+                    })
+                });
+            } catch (error) {
+                showError(error);
+                return;
+            }
             AudioSynth.playInterfaceSFX();
             showComicPop(`PING SENT TO ${heroName.toUpperCase()}! 📲`, "#8b5cf6");
         }
 
-        function removeSquadMember(identifier) {
+        async function removeSquadMember(matchId) {
+            if (!myUserId || !matchId) return;
+            try {
+                await api(`/api/matches/${encodeURIComponent(matchId)}?userId=${encodeURIComponent(myUserId)}`, {
+                    method: "DELETE"
+                });
+            } catch (error) {
+                showError(error);
+                return;
+            }
             AudioSynth.playKickSFX();
-            myConnectedMatches = myConnectedMatches.filter(m => (m.id || m.name) !== identifier);
+            myConnectedMatches = myConnectedMatches.filter(member => member.matchId !== matchId);
             renderSquadGrid();
             updateBadgeCounter();
             showComicPop("REMOVED FROM SQUAD! 💨", "#ef4444");
@@ -1605,13 +1739,45 @@
                 document.getElementById('view-matches').classList.add('active-view');
                 document.getElementById('nav-matches').classList.add('active');
                 bodyEl.classList.add('view-match-bg');
-                renderSquadGrid();
+                loadSquad().catch(showError);
             }
         }
 
-        function launchApp() {
+        async function loadDeck() {
+            const data = await api(`/api/users/${encodeURIComponent(myUserId)}/candidates`);
+            candidates = (data.candidates || []).map((person) => personToCard(person));
+            currentCandidateIndex = 0;
+            updateMatchCard();
+        }
+
+        async function loadSquad() {
+            if (!myUserId) {
+                myConnectedMatches = [];
+                renderSquadGrid();
+                updateBadgeCounter();
+                return;
+            }
+            const data = await api(`/api/users/${encodeURIComponent(myUserId)}/matches`);
+            myConnectedMatches = (data.matches || []).map((entry) => personToCard(entry.partner, entry.matchId));
+            renderSquadGrid();
+            updateBadgeCounter();
+        }
+
+        function fillForm(profile) {
+            document.getElementById('name').value = profile.displayName || "";
+            document.getElementById('building').value = profile.projectIdea || "";
+            document.getElementById('pitches').value = Array.isArray(profile.tracks) ? profile.tracks.join(", ") : "";
+            const names = new Set((profile.roles || []).map((role) => role.name));
+            document.querySelectorAll('input[name="role"]').forEach((box) => {
+                box.checked = names.has(box.value);
+            });
+            activeRoles = Array.from(document.querySelectorAll('input[name="role"]:checked')).map((box) => box.value);
+        }
+
+        async function launchApp() {
             const nameField = document.getElementById('name');
             const nameVal = nameField ? nameField.value.trim() : '';
+            const button = document.getElementById('find-squad-btn');
 
             if (!nameVal) {
                 nameField.style.borderColor = '#ef4444';
@@ -1620,34 +1786,44 @@
                 return;
             }
 
+            const selectedRoles = Array.from(document.querySelectorAll('input[name="role"]:checked'))
+                .map((box) => roleIds[box.value])
+                .filter(Boolean);
+            if (selectedRoles.length === 0) {
+                showComicPop("Pick at least one role.", "#ef4444", "#ffffff", 1600);
+                return;
+            }
+
             nameField.style.borderColor = '#cbd5e1';
             nameField.style.boxShadow = 'none';
 
-            const buildingVal = document.getElementById('building').value.trim() || 'Custom Hackathon App';
-            const pitchesVal = document.getElementById('pitches').value.trim() || 'Open Challenge Track';
-            const selectedRoleBoxes = Array.from(document.querySelectorAll('input[name="role"]:checked')).map(cb => cb.value);
-            const roleVal = selectedRoleBoxes.length > 0 ? selectedRoleBoxes.join(' & ') : "The Visionary (Design / UI)";
-
-            const userProfile = {
-                id: 'user_profile',
-                name: nameVal,
-                role: roleVal,
-                bio: `Building: ${buildingVal}\nTrack: ${pitchesVal}`,
-                avatar: uploadedAvatarUrl || '🦸‍♂️'
+            const payload = {
+                displayName: nameVal,
+                avatarId: "hero",
+                roles: selectedRoles,
+                projectIdea: document.getElementById('building').value.trim() || "Custom Hackathon App",
+                tracks: document.getElementById('pitches').value.trim() || "Open Challenge Track"
             };
 
-            const existingUserIdx = candidates.findIndex(c => c.id === 'user_profile');
-            if (existingUserIdx !== -1) {
-                candidates.splice(existingUserIdx, 1);
+            button.disabled = true;
+            try {
+                const profile = myUserId
+                    ? await api(`/api/users/${encodeURIComponent(myUserId)}`, { method: "PUT", body: JSON.stringify(payload) })
+                    : await api("/api/users", { method: "POST", body: JSON.stringify(payload) });
+                myUserId = profile.userId;
+                localStorage.setItem("hackerTrackerUserId", myUserId);
+                await loadDeck();
+                await loadSquad();
+            } catch (error) {
+                showError(error);
+                return;
+            } finally {
+                button.disabled = false;
             }
-
-            candidates.unshift(userProfile);
-            currentCandidateIndex = 0;
 
             const activeCard = document.getElementById('active-match-card');
             activeCard.className = 'match-card';
             isAnimating = false;
-
             switchView('match');
             updateMatchCard();
         }
@@ -1697,10 +1873,34 @@
             }
         });
 
-        window.onload = function() {
+        document.getElementById('squad-grid').addEventListener('click', (event) => {
+            const ping = event.target.closest('.squad-btn-ping');
+            if (ping) {
+                pingSquadMember(ping.dataset.matchId, ping.dataset.name);
+                return;
+            }
+            const remove = event.target.closest('.squad-btn-remove');
+            if (remove) {
+                removeSquadMember(remove.dataset.matchId);
+            }
+        });
+
+        window.onload = async function() {
             updateMatchCard();
             renderSquadGrid();
             updateBadgeCounter();
+            if (!myUserId) return;
+            try {
+                const profile = await api(`/api/users/${encodeURIComponent(myUserId)}`);
+                fillForm(profile);
+                await loadDeck();
+                await loadSquad();
+            } catch (error) {
+                if (/not found/i.test(error.message)) {
+                    myUserId = "";
+                    localStorage.removeItem("hackerTrackerUserId");
+                }
+            }
         };
     </script>
 </body>

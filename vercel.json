@@ -1,6 +1,10 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "services": {
+    "frontend": {
+      "root": "frontend",
+      "framework": "express"
+    },
     "backend": {
       "root": "backend",
       "framework": "express"
@@ -31,6 +35,7 @@
     { "source": "/api/users/(.*)/locations", "destination": { "service": "core" } },
     { "source": "/api/users/(.*)/check-in", "destination": { "service": "core" } },
     { "source": "/api/users/(.*)/teams", "destination": { "service": "core" } },
-    { "source": "/(.*)", "destination": { "service": "backend" } }
+    { "source": "/api/(.*)", "destination": { "service": "backend" } },
+    { "source": "/(.*)", "destination": { "service": "frontend" } }
   ]
 }

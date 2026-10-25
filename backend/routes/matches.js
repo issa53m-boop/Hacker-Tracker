@@ -1,6 +1,6 @@
 const express = require("express");
 const { getUser } = require("../services/profiles");
-const { roleMatches, listMatchRows, getMatchRow } = require("../services/matching");
+const { roleMatches, listMatchRows, getMatchRow, deleteMatch } = require("../services/matching");
 const { templateForUser, templateForPair } = require("../services/explanation");
 const { HttpError, asyncRoute } = require("../lib/helpers");
 
@@ -58,6 +58,10 @@ matchRouter.get("/:matchId", asyncRoute(async (req, res) => {
     createdAt: row.created_at,
     why: templateForPair(people[0], people[1])
   });
+}));
+
+matchRouter.delete("/:matchId", asyncRoute(async (req, res) => {
+  res.json(await deleteMatch(req.params.matchId, req.query.userId));
 }));
 
 module.exports = { userMatches, matchRouter };

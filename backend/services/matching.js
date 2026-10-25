@@ -182,6 +182,18 @@ async function getMatchRow(matchId) {
   return rows[0] || null;
 }
 
+async function deleteMatch(matchId, userId) {
+  const row = await getMatchRow(matchId);
+  if (!row) {
+    throw new HttpError(404, "That match was not found.");
+  }
+  if (userId !== row.user_low_id && userId !== row.user_high_id) {
+    throw new HttpError(403, "Only the two matched hackers can do that.");
+  }
+  await query("DELETE FROM matches WHERE id = ?", [matchId]);
+  return { ok: true };
+}
+
 module.exports = {
   sharedTracks,
   complementaryRoles,
@@ -189,5 +201,6 @@ module.exports = {
   listCandidates,
   roleMatches,
   listMatchRows,
-  getMatchRow
+  getMatchRow,
+  deleteMatch
 };
